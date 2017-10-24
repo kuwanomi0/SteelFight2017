@@ -31,19 +31,12 @@ static int32_t   bt_cmd = 0;      /* Bluetoothコマンド 1:リモートスタート */
 static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
-#define GYRO_OFFSET           0  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define LIGHT_WHITE          40  /* 白色の光センサ値 */
-#define LIGHT_BLACK           0  /* 黒色の光センサ値 */
-#define SONAR_ALERT_DISTANCE 30  /* 超音波センサによる障害物検知距離[cm] */
 #define CMD_START         '1'    /* リモートスタートコマンド */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
 #define CALIB_FONT_WIDTH (6/*TODO: magic number*/)
 #define CALIB_FONT_HEIGHT (8/*TODO: magic number*/)
-
-/* 関数プロトタイプ宣言 */
-static int32_t sonar_alert(void);
 
 /* オブジェクトへのポインタ定義 */
 SonarSensor*    sonarSensor;
@@ -57,10 +50,6 @@ Clock*          clock;
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    // int8_t forward;      /* 前後進命令 */
-    // int8_t turn;         /* 旋回命令 */
-    int8_t pwm_L, pwm_R, pwm_M; /* 左右モータPWM出力 */
-
     /* 各オブジェクトを生成・初期化する */
     colorSensor = new ColorSensor(PORT_1);
     sonarSensor = new SonarSensor(PORT_2);
@@ -109,36 +98,7 @@ void main_task(intptr_t unused)
     */
     while(1)
     {
-        int32_t motor_ang_m;
-        // int32_t motor_ang_l, motor_ang_r;
-        // int32_t gyro, volt;
-
         if (ev3_button_is_pressed(BACK_BUTTON)) break;
-
-        // if (sonar_alert() == 1) /* 障害物検知 */
-        // {
-        //     // forward = turn = 0; /* 障害物を検知したら停止 */
-        // }
-        // else
-        // {
-        //     // forward = 30; /* 前進命令 */
-        //     if (colorSensor->getBrightness() >= (LIGHT_WHITE + LIGHT_BLACK)/2)
-        //     {
-        //         turn =  20; /* 左旋回命令 */
-        //     }
-        //     else
-        //     {
-        //         turn = -20; /* 右旋回命令 */
-        //     }
-        // }
-
-        /* 倒立振子制御API に渡すパラメータを取得する */
-        motor_ang_m = MMotor->getCount();
-        // motor_ang_l = leftMotor->getCount();
-        // motor_ang_r = rightMotor->getCount();
-        // gyro = gyroSensor->getAnglerVelocity();
-        // volt = ev3_battery_voltage_mV();
-
 
         leftMotor->setPWM(10);
         rightMotor->setPWM(10);
@@ -152,7 +112,6 @@ void main_task(intptr_t unused)
             clock->reset();
         }
 
-
         clock->sleep(4); /* 4msec周期起動 */
     }
     leftMotor->reset();
@@ -164,41 +123,6 @@ void main_task(intptr_t unused)
 
     ext_tsk();
 }
-
-//*****************************************************************************
-// 関数名 : sonar_alert
-// 引数 : 無し
-// 返り値 : 1(障害物あり)/0(障害物無し)
-// 概要 : 超音波センサによる障害物検知
-//*****************************************************************************
-// static int32_t sonar_alert(void)
-// {
-//     static uint32_t counter = 0;
-//     static int32_t alert = 0;
-
-//     int32_t distance;
-
-//     if (++counter == 40/4) /* 約40msec周期毎に障害物検知  */
-//     {
-
-//          * 超音波センサによる距離測定周期は、超音波の減衰特性に依存します。
-//          * NXTの場合は、40msec周期程度が経験上の最短測定周期です。
-//          * EV3の場合は、要確認
-
-//         distance = sonarSensor->getDistance();
-//         if ((distance <= SONAR_ALERT_DISTANCE) && (distance >= 0))
-//         {
-//             alert = 1; /* 障害物を検知 */
-//         }
-//         else
-//         {
-//             alert = 0; /* 障害物無し */
-//         }
-//         counter = 0;
-//     }
-
-//     return alert;
-// }
 
 //*****************************************************************************
 // 関数名 : bt_task
