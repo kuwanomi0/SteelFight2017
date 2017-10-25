@@ -1,22 +1,26 @@
 /**
+ * *****************************************************************************
+ * ファイル名 : app.c
+ *
+ * 概要 : 2輪倒立振子ライントレースロボットのTOPPERS/HRP2用Cサンプルプログラム
+ *
+ * 注記 : sample_c4 (sample_c3にBluetooth通信リモートスタート機能を追加)
+ *
+ * @version task_1.0 : 2017.06.28
+ *    +ディレクトリ名をtouchguy に変更する
+ *    +コントロールタスク追加し周期ハンドラで動かす
  ******************************************************************************
- ** ファイル名 : app.cpp
- **
- ** 概要 : 2輪倒立振子ライントレースロボットのTOPPERS/HRP2用C++サンプルプログラム
- **
- ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
- ******************************************************************************
- **/
+ */
+#define VERSION "task_1.0"
 
 #include "ev3api.h"
 #include "app.h"
-#include "SonarSensor.h"
-#include "ColorSensor.h"
-#include "GyroSensor.h"
-#include "Motor.h"
-#include "Clock.h"
 
-using namespace ev3api;
+#if defined(BUILD_MODULE)
+#include "module_cfg.h"
+#else
+#include "kernel_cfg.h"
+#endif
 
 #define DEBUG
 
@@ -26,42 +30,59 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
-/* Bluetooth */
-static int32_t   bt_cmd = 0;      /* Bluetoothコマンド 1:リモートスタート */
-static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
+/**
+ * センサー、モーターの接続を定義します
+ */
+static const sensor_port_t
+    color_sensor    = EV3_PORT_1,
+    sonar_sensor    = EV3_PORT_2,
+    gyro_sensor     = EV3_PORT_3;
+
+static const motor_port_t
+    m_motor         = EV3_PORT_A,
+    left_motor      = EV3_PORT_B,
+    right_motor     = EV3_PORT_C;
+
+static int      bt_cmd = 0;     /* Bluetoothコマンド 1:リモートスタート */
+static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
-#define CMD_START         '1'    /* リモートスタートコマンド */
+#define GYRO_OFFSET  0          /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
+#define LIGHT_WHITE  40         /* 白色の光センサ値 */
+#define LIGHT_BLACK  0          /* 黒色の光センサ値 */
+#define SONAR_ALERT_DISTANCE 15 /* 超音波センサによる障害物検知距離[cm] */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
 #define CALIB_FONT_WIDTH (6/*TODO: magic number*/)
 #define CALIB_FONT_HEIGHT (8/*TODO: magic number*/)
 
-/* オブジェクトへのポインタ定義 */
-SonarSensor*    sonarSensor;
-ColorSensor*    colorSensor;
-GyroSensor*     gyroSensor;
-Motor*          leftMotor;
-Motor*          rightMotor;
-Motor*          MMotor;
-Clock*          clock;
+/* 関数プロトタイプ宣言 */
+static int sonar_alert(void);
+
+static signed char forward;      /* 前後進命令 */
+static signed char turn;         /* 旋回命令 */
+static signed char pwm_L, pwm_R, pwm_M; /* 左右モータPWM出力 */
 
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    /* 各オブジェクトを生成・初期化する */
-    colorSensor = new ColorSensor(PORT_1);
-    sonarSensor = new SonarSensor(PORT_2);
-    gyroSensor  = new GyroSensor(PORT_3);
-    rightMotor  = new Motor(PORT_C);
-    leftMotor   = new Motor(PORT_B);
-    MMotor      = new Motor(PORT_A);
-    clock       = new Clock();
+	char buf[64];
 
     /* LCD画面表示 */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
-    ev3_lcd_draw_string("EV3way-ET sample_cpp", 0, CALIB_FONT_HEIGHT*1);
+	sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
+    ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
+
+    /* センサー入力ポートの設定 */
+    ev3_sensor_config(color_sensor, COLOR_SENSOR);
+    ev3_color_sensor_get_reflect(color_sensor); /* 反射率モード */
+    ev3_sensor_config(sonar_sensor, ULTRASONIC_SENSOR);
+    ev3_sensor_config(gyro_sensor, GYRO_SENSOR);
+    /* モーター出力ポートの設定 */
+    ev3_motor_config(m_motor, LARGE_MOTOR);
+    ev3_motor_config(left_motor, LARGE_MOTOR);
+    ev3_motor_config(right_motor, LARGE_MOTOR);
 
     /* Open Bluetooth file */
     bt = ev3_serial_open_file(EV3_SERIAL_BT);
@@ -73,55 +94,163 @@ void main_task(intptr_t unused)
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
     /* スタート待機 */
-    while(1)
-    {
-        if (bt_cmd == 1)
-        {
+    while(1) {
+        if (bt_cmd == 1) {
             break; /* リモートスタート */
         }
-
-        clock->sleep(10);
+        tslp_tsk(10); /* 10msecウェイト */
     }
 
     /* 走行モーターエンコーダーリセット */
-    leftMotor->reset();
-    rightMotor->reset();
-    MMotor->reset();
+    ev3_motor_reset_counts(m_motor);
+    ev3_motor_reset_counts(left_motor);
+    ev3_motor_reset_counts(right_motor);
 
     /* ジャイロセンサーリセット */
-    gyroSensor->reset();
+    ev3_gyro_sensor_reset(gyro_sensor);
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
-    /**
-    * Main loop for the self-balance control algorithm
-    */
-    while(1)
-    {
-        if (ev3_button_is_pressed(BACK_BUTTON)) break;
+	ER er = ev3_sta_cyc(CYC_HANDLER);	//周期ハンドラを起動
+	sprintf(buf, "main_task: error_code=%d", MERCD(er) );	// APIのエラーコードの表示
+    //ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);		// の仕方です。
 
-        leftMotor->setPWM(50);
-        rightMotor->setPWM(50);
-        // if (clock->now() < 5000) {
-        //     MMotor->setPWM(10);
-        // }
-        // if (5000 <= clock->now() && clock->now() < 10000){
-        //     MMotor->setPWM(-10);
-        // }
-        // if (10000 <= clock->now()) {
-        //     clock->reset();
-        // }
+	/* 自タスク(メインタスク）を待ち状態にする */
+	slp_tsk();
 
-        clock->sleep(4); /* 4msec周期起動 */
-    }
-    leftMotor->reset();
-    rightMotor->reset();
-    MMotor->reset();
+	//
+	// ここにあった処理を controller_task に移動しました。
+	//
+
+    ev3_motor_stop(m_motor, false);
+    ev3_motor_stop(left_motor, false);
+    ev3_motor_stop(right_motor, false);
 
     ter_tsk(BT_TASK);
     fclose(bt);
 
+    ev3_lcd_draw_string("EV3RT Stopped.", 0, CALIB_FONT_HEIGHT*9);
     ext_tsk();
+}
+
+//*****************************************************************************
+// 関数名 : controller_task
+// 引数   : 拡張情報
+// 返り値 : なし
+// 概要   : コントローラータスク
+//*****************************************************************************
+void controller_task(intptr_t unused)
+{
+	int32_t motor_ang_l, motor_ang_r;
+	int gyro, volt;
+
+    pwm_L = 50;
+    pwm_R = 50;
+    pwm_M = 0;
+
+    if (bt_cmd == 2) {
+        pwm_L = -50;
+    }
+    if (bt_cmd == 3) {
+        pwm_R = -50;
+    }
+    if (bt_cmd == 4) {
+        pwm_L = 0;
+        pwm_R = 0;
+    }
+    if (bt_cmd == 5) {
+        pwm_L = 0;
+        pwm_R = 0;
+        pwm_M = 70;
+    }
+    if (bt_cmd == 6) {
+        pwm_L = 0;
+        pwm_R = 0;
+        pwm_M = -70;
+    }
+    // if (sonar_alert() == 1){ /* 障害物検知 */
+    //     pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
+    // }
+
+
+	/* 倒立振子制御API に渡すパラメータを取得する */
+	motor_ang_l = ev3_motor_get_counts(left_motor);
+	motor_ang_r = ev3_motor_get_counts(right_motor);
+	gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
+	volt = ev3_battery_voltage_mV();
+
+
+
+	/* EV3ではモーター停止時のブレーキ設定が事前にできないため */
+	/* 出力0時に、その都度設定する */
+	if (pwm_L == 0) {
+		 ev3_motor_stop(left_motor, true);
+	} else {
+		ev3_motor_set_power(left_motor, (int)pwm_L);
+	}
+
+    if (pwm_R == 0) {
+         ev3_motor_stop(right_motor, true);
+    } else {
+        ev3_motor_set_power(right_motor, (int)pwm_R);
+    }
+
+	if (pwm_M == 0) {
+		 ev3_motor_stop(m_motor, true);
+	} else {
+		ev3_motor_set_power(m_motor, (int)pwm_M);
+	}
+
+	/* タッチセンサが押されたら停止する */
+    if (bt_cmd == 0) {
+		wup_tsk(MAIN_TASK);			//メインタスクを起床する
+		ev3_stp_cyc(CYC_HANDLER);	//周期ハンドラを停止する
+	}
+
+	ext_tsk();
+}
+
+//*****************************************************************************
+// 関数名 : cyc_handler
+// 引数   : 拡張情報
+// 返り値 : なし
+// 概要   : 周期ハンドラ(4ms)
+//*****************************************************************************
+void cyc_handler(intptr_t unused)
+{
+	// コントローラタスクを起動する
+	act_tsk(CONTROLLER_TASK);
+}
+
+//*****************************************************************************
+// 関数名 : sonar_alert
+// 引数 : 無し
+// 返り値 : 1(障害物あり)/0(障害物無し)
+// 概要 : 超音波センサによる障害物検知
+//*****************************************************************************
+static int sonar_alert(void)
+{
+    static unsigned int counter = 0;
+    static int alert = 0;
+
+    signed int distance;
+
+    if (++counter == 40/4){ /* 約40msec周期毎に障害物検知  */
+        /*
+         * 超音波センサによる距離測定周期は、超音波の減衰特性に依存します。
+         * NXTの場合は、40msec周期程度が経験上の最短測定周期です。
+         * EV3の場合は、要確認
+         */
+        distance = ev3_ultrasonic_sensor_get_distance(sonar_sensor);
+        if ((distance <= SONAR_ALERT_DISTANCE) && (distance >= 0)) {
+            alert = 1; /* 障害物を検知 */
+        } else {
+            alert = 0; /* 障害物無し */
+        }
+        counter = 0;
+    }
+
+    return alert;
 }
 
 //*****************************************************************************
@@ -133,13 +262,29 @@ void main_task(intptr_t unused)
 //*****************************************************************************
 void bt_task(intptr_t unused)
 {
-    while(1)
-    {
+    while(1) {
         uint8_t c = fgetc(bt); /* 受信 */
-        switch(c)
-        {
+        switch(c) {
         case '1':
             bt_cmd = 1;
+            break;
+        case '0':
+            bt_cmd = 0;
+            break;
+        case '2':
+            bt_cmd = 2;
+            break;
+        case '3':
+            bt_cmd = 3;
+            break;
+        case '4':
+            bt_cmd = 4;
+            break;
+        case '5':
+            bt_cmd = 5;
+            break;
+        case '6':
+            bt_cmd = 6;
             break;
         default:
             break;
