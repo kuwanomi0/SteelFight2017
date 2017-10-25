@@ -1,4 +1,4 @@
-APPL_COBJS += 
+APPL_COBJS +=
 
 APPL_CXXOBJS +=
 

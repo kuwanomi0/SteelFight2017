@@ -1,10 +1,10 @@
 /**
  ******************************************************************************
- ** ƒtƒ@ƒCƒ‹–¼ : app.cpp
+ ** ãƒ•ã‚¡ã‚¤ãƒ«å : app.cpp
  **
- ** ŠT—v : 2—Ö“|—§Uqƒ‰ƒCƒ“ƒgƒŒ[ƒXƒƒ{ƒbƒg‚ÌTOPPERS/HRP2—pC++ƒTƒ“ƒvƒ‹ƒvƒƒOƒ‰ƒ€
+ ** æ¦‚è¦ : 2è¼ªå€’ç«‹æŒ¯å­ãƒ©ã‚¤ãƒ³ãƒˆãƒ¬ãƒ¼ã‚¹ãƒ­ãƒœãƒƒãƒˆã®TOPPERS/HRP2ç”¨C++ã‚µãƒ³ãƒ—ãƒ«ãƒ—ãƒ­ã‚°ãƒ©ãƒ 
  **
- ** ’‹L : sample_cpp (ƒ‰ƒCƒ“ƒgƒŒ[ƒX/K”öƒ‚[ƒ^/’´‰¹”gƒZƒ“ƒT/ƒŠƒ‚[ƒgƒXƒ^[ƒg)
+ ** æ³¨è¨˜ : sample_cpp (ãƒ©ã‚¤ãƒ³ãƒˆãƒ¬ãƒ¼ã‚¹/å°»å°¾ãƒ¢ãƒ¼ã‚¿/è¶…éŸ³æ³¢ã‚»ãƒ³ã‚µ/ãƒªãƒ¢ãƒ¼ãƒˆã‚¹ã‚¿ãƒ¼ãƒˆ)
  ******************************************************************************
  **/
 
@@ -27,18 +27,18 @@ using namespace ev3api;
 #endif
 
 /* Bluetooth */
-static int32_t   bt_cmd = 0;      /* BluetoothƒRƒ}ƒ“ƒh 1:ƒŠƒ‚[ƒgƒXƒ^[ƒg */
-static FILE     *bt = NULL;      /* Bluetoothƒtƒ@ƒCƒ‹ƒnƒ“ƒhƒ‹ */
+static int32_t   bt_cmd = 0;      /* Bluetoothã‚³ãƒãƒ³ãƒ‰ 1:ãƒªãƒ¢ãƒ¼ãƒˆã‚¹ã‚¿ãƒ¼ãƒˆ */
+static FILE     *bt = NULL;      /* Bluetoothãƒ•ã‚¡ã‚¤ãƒ«ãƒãƒ³ãƒ‰ãƒ« */
 
-/* ‰º‹L‚Ìƒ}ƒNƒ‚ÍŒÂ‘Ì/ŠÂ‹«‚É‡‚í‚¹‚Ä•ÏX‚·‚é•K—v‚ª‚ ‚è‚Ü‚· */
-#define CMD_START         '1'    /* ƒŠƒ‚[ƒgƒXƒ^[ƒgƒRƒ}ƒ“ƒh */
+/* ä¸‹è¨˜ã®ãƒã‚¯ãƒ­ã¯å€‹ä½“/ç’°å¢ƒã«åˆã‚ã›ã¦å¤‰æ›´ã™ã‚‹å¿…è¦ãŒã‚ã‚Šã¾ã™ */
+#define CMD_START         '1'    /* ãƒªãƒ¢ãƒ¼ãƒˆã‚¹ã‚¿ãƒ¼ãƒˆã‚³ãƒãƒ³ãƒ‰ */
 
-/* LCDƒtƒHƒ“ƒgƒTƒCƒY */
+/* LCDãƒ•ã‚©ãƒ³ãƒˆã‚µã‚¤ã‚º */
 #define CALIB_FONT (EV3_FONT_SMALL)
 #define CALIB_FONT_WIDTH (6/*TODO: magic number*/)
 #define CALIB_FONT_HEIGHT (8/*TODO: magic number*/)
 
-/* ƒIƒuƒWƒFƒNƒg‚Ö‚Ìƒ|ƒCƒ“ƒ^’è‹` */
+/* ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã¸ã®ãƒã‚¤ãƒ³ã‚¿å®šç¾© */
 SonarSensor*    sonarSensor;
 ColorSensor*    colorSensor;
 GyroSensor*     gyroSensor;
@@ -47,10 +47,10 @@ Motor*          rightMotor;
 Motor*          MMotor;
 Clock*          clock;
 
-/* ƒƒCƒ“ƒ^ƒXƒN */
+/* ãƒ¡ã‚¤ãƒ³ã‚¿ã‚¹ã‚¯ */
 void main_task(intptr_t unused)
 {
-    /* ŠeƒIƒuƒWƒFƒNƒg‚ğ¶¬E‰Šú‰»‚·‚é */
+    /* å„ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç”Ÿæˆãƒ»åˆæœŸåŒ–ã™ã‚‹ */
     colorSensor = new ColorSensor(PORT_1);
     sonarSensor = new SonarSensor(PORT_2);
     gyroSensor  = new GyroSensor(PORT_3);
@@ -59,7 +59,7 @@ void main_task(intptr_t unused)
     MMotor      = new Motor(PORT_A);
     clock       = new Clock();
 
-    /* LCD‰æ–Ê•\¦ */
+    /* LCDç”»é¢è¡¨ç¤º */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
     ev3_lcd_draw_string("EV3way-ET sample_cpp", 0, CALIB_FONT_HEIGHT*1);
 
@@ -67,31 +67,31 @@ void main_task(intptr_t unused)
     bt = ev3_serial_open_file(EV3_SERIAL_BT);
     assert(bt != NULL);
 
-    /* Bluetooth’ÊMƒ^ƒXƒN‚Ì‹N“® */
+    /* Bluetoothé€šä¿¡ã‚¿ã‚¹ã‚¯ã®èµ·å‹• */
     act_tsk(BT_TASK);
 
-    ev3_led_set_color(LED_ORANGE); /* ‰Šú‰»Š®—¹’Ê’m */
+    ev3_led_set_color(LED_ORANGE); /* åˆæœŸåŒ–å®Œäº†é€šçŸ¥ */
 
-    /* ƒXƒ^[ƒg‘Ò‹@ */
+    /* ã‚¹ã‚¿ãƒ¼ãƒˆå¾…æ©Ÿ */
     while(1)
     {
         if (bt_cmd == 1)
         {
-            break; /* ƒŠƒ‚[ƒgƒXƒ^[ƒg */
+            break; /* ãƒªãƒ¢ãƒ¼ãƒˆã‚¹ã‚¿ãƒ¼ãƒˆ */
         }
 
         clock->sleep(10);
     }
 
-    /* ‘–sƒ‚[ƒ^[ƒGƒ“ƒR[ƒ_[ƒŠƒZƒbƒg */
+    /* èµ°è¡Œãƒ¢ãƒ¼ã‚¿ãƒ¼ã‚¨ãƒ³ã‚³ãƒ¼ãƒ€ãƒ¼ãƒªã‚»ãƒƒãƒˆ */
     leftMotor->reset();
     rightMotor->reset();
     MMotor->reset();
 
-    /* ƒWƒƒƒCƒƒZƒ“ƒT[ƒŠƒZƒbƒg */
+    /* ã‚¸ãƒ£ã‚¤ãƒ­ã‚»ãƒ³ã‚µãƒ¼ãƒªã‚»ãƒƒãƒˆ */
     gyroSensor->reset();
 
-    ev3_led_set_color(LED_GREEN); /* ƒXƒ^[ƒg’Ê’m */
+    ev3_led_set_color(LED_GREEN); /* ã‚¹ã‚¿ãƒ¼ãƒˆé€šçŸ¥ */
 
     /**
     * Main loop for the self-balance control algorithm
@@ -112,7 +112,7 @@ void main_task(intptr_t unused)
             clock->reset();
         }
 
-        clock->sleep(4); /* 4msecüŠú‹N“® */
+        clock->sleep(4); /* 4msecå‘¨æœŸèµ·å‹• */
     }
     leftMotor->reset();
     rightMotor->reset();
@@ -125,17 +125,17 @@ void main_task(intptr_t unused)
 }
 
 //*****************************************************************************
-// ŠÖ”–¼ : bt_task
-// ˆø” : unused
-// •Ô‚è’l : ‚È‚µ
-// ŠT—v : Bluetooth’ÊM‚É‚æ‚éƒŠƒ‚[ƒgƒXƒ^[ƒgB Tera Term‚È‚Ç‚Ìƒ^[ƒ~ƒiƒ‹ƒ\ƒtƒg‚©‚çA
-//       ASCIIƒR[ƒh‚Å1‚ğ‘—M‚·‚é‚ÆAƒŠƒ‚[ƒgƒXƒ^[ƒg‚·‚éB
+// é–¢æ•°å : bt_task
+// å¼•æ•° : unused
+// è¿”ã‚Šå€¤ : ãªã—
+// æ¦‚è¦ : Bluetoothé€šä¿¡ã«ã‚ˆã‚‹ãƒªãƒ¢ãƒ¼ãƒˆã‚¹ã‚¿ãƒ¼ãƒˆã€‚ Tera Termãªã©ã®ã‚¿ãƒ¼ãƒŸãƒŠãƒ«ã‚½ãƒ•ãƒˆã‹ã‚‰ã€
+//       ASCIIã‚³ãƒ¼ãƒ‰ã§1ã‚’é€ä¿¡ã™ã‚‹ã¨ã€ãƒªãƒ¢ãƒ¼ãƒˆã‚¹ã‚¿ãƒ¼ãƒˆã™ã‚‹ã€‚
 //*****************************************************************************
 void bt_task(intptr_t unused)
 {
     while(1)
     {
-        uint8_t c = fgetc(bt); /* óM */
+        uint8_t c = fgetc(bt); /* å—ä¿¡ */
         switch(c)
         {
         case '1':
@@ -144,6 +144,6 @@ void bt_task(intptr_t unused)
         default:
             break;
         }
-        fputc(c, bt); /* ƒGƒR[ƒoƒbƒN */
+        fputc(c, bt); /* ã‚¨ã‚³ãƒ¼ãƒãƒƒã‚¯ */
     }
 }
