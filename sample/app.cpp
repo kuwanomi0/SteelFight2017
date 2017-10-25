@@ -50,7 +50,7 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET  0          /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define LIGHT_WHITE  40         /* 白色の光センサ値 */
 #define LIGHT_BLACK  0          /* 黒色の光センサ値 */
-#define SONAR_ALERT_DISTANCE 15 /* 超音波センサによる障害物検知距離[cm] */
+#define SONAR_ALERT_DISTANCE 0 /* 超音波センサによる障害物検知距離[cm] */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -60,18 +60,16 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int sonar_alert(void);
 
-static signed char forward;      /* 前後進命令 */
-static signed char turn;         /* 旋回命令 */
 static signed char pwm_L, pwm_R, pwm_M; /* 左右モータPWM出力 */
 
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-	char buf[64];
+    char buf[64];
 
     /* LCD画面表示 */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
-	sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
+    sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
     ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
 
     /* センサー入力ポートの設定 */
@@ -111,16 +109,12 @@ void main_task(intptr_t unused)
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
-	ER er = ev3_sta_cyc(CYC_HANDLER);	//周期ハンドラを起動
-	sprintf(buf, "main_task: error_code=%d", MERCD(er) );	// APIのエラーコードの表示
+    ER er = ev3_sta_cyc(CYC_HANDLER);	//周期ハンドラを起動
+    sprintf(buf, "main_task: error_code=%d", MERCD(er) );	// APIのエラーコードの表示
     //ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);		// の仕方です。
 
-	/* 自タスク(メインタスク）を待ち状態にする */
-	slp_tsk();
-
-	//
-	// ここにあった処理を controller_task に移動しました。
-	//
+    /* 自タスク(メインタスク）を待ち状態にする */
+    slp_tsk();
 
     ev3_motor_stop(m_motor, false);
     ev3_motor_stop(left_motor, false);
@@ -141,13 +135,11 @@ void main_task(intptr_t unused)
 //*****************************************************************************
 void controller_task(intptr_t unused)
 {
-	int32_t motor_ang_l, motor_ang_r;
-	int gyro, volt;
-
     pwm_L = 0;
     pwm_R = 0;
     pwm_M = 0;
 
+    // ショボいラジコン操作
     if (bt_cmd == 'a') {
         pwm_R = 30;
         pwm_L = -30;
@@ -178,26 +170,17 @@ void controller_task(intptr_t unused)
         pwm_R = 0;
         pwm_M = -70;
     }
-    // if (sonar_alert() == 1){ /* 障害物検知 */
-    //     pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
-    // }
+    if (sonar_alert() == 1){ /* 障害物検知 */
+        pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
+    }
 
-
-	/* 倒立振子制御API に渡すパラメータを取得する */
-	motor_ang_l = ev3_motor_get_counts(left_motor);
-	motor_ang_r = ev3_motor_get_counts(right_motor);
-	gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
-	volt = ev3_battery_voltage_mV();
-
-
-
-	/* EV3ではモーター停止時のブレーキ設定が事前にできないため */
-	/* 出力0時に、その都度設定する */
-	if (pwm_L == 0) {
-		 ev3_motor_stop(left_motor, true);
-	} else {
-		ev3_motor_set_power(left_motor, (int)pwm_L);
-	}
+    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
+    /* 出力0時に、その都度設定する */
+    if (pwm_L == 0) {
+         ev3_motor_stop(left_motor, true);
+    } else {
+        ev3_motor_set_power(left_motor, (int)pwm_L);
+    }
 
     if (pwm_R == 0) {
          ev3_motor_stop(right_motor, true);
@@ -205,19 +188,19 @@ void controller_task(intptr_t unused)
         ev3_motor_set_power(right_motor, (int)pwm_R);
     }
 
-	if (pwm_M == 0) {
-		 ev3_motor_stop(m_motor, true);
-	} else {
-		ev3_motor_set_power(m_motor, (int)pwm_M);
-	}
+    if (pwm_M == 0) {
+        ev3_motor_stop(m_motor, true);
+    } else {
+        ev3_motor_set_power(m_motor, (int)pwm_M);
+    }
 
-	/* タッチセンサが押されたら停止する */
+    /* タッチセンサが押されたら停止する */
     if (bt_cmd == 0) {
-		wup_tsk(MAIN_TASK);			//メインタスクを起床する
-		ev3_stp_cyc(CYC_HANDLER);	//周期ハンドラを停止する
-	}
+        wup_tsk(MAIN_TASK);        //メインタスクを起床する
+        ev3_stp_cyc(CYC_HANDLER);  //周期ハンドラを停止する
+    }
 
-	ext_tsk();
+    ext_tsk();
 }
 
 //*****************************************************************************
