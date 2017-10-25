@@ -14,7 +14,7 @@ Bluetoothは試走時間のみ使用可能
 + [ルール](http://www.invite.gr.jp/news/robo/pdf/26robo_soft.pdf)
 + [ルール改定](http://www.invite.gr.jp/news/robo/pdf/soft_20170613.pdf)
 
-##ロボットのポート
+## ロボットのポート
 A:アーム
 B:左タイヤ
 C:右タイヤ
