@@ -100,17 +100,17 @@ void main_task(intptr_t unused)
     {
         if (ev3_button_is_pressed(BACK_BUTTON)) break;
 
-        leftMotor->setPWM(10);
-        rightMotor->setPWM(10);
-        if (clock->now() < 5000) {
-            MMotor->setPWM(10);
-        }
-        if (5000 <= clock->now() && clock->now() < 10000){
-            MMotor->setPWM(-10);
-        }
-        if (10000 <= clock->now()) {
-            clock->reset();
-        }
+        leftMotor->setPWM(50);
+        rightMotor->setPWM(50);
+        // if (clock->now() < 5000) {
+        //     MMotor->setPWM(10);
+        // }
+        // if (5000 <= clock->now() && clock->now() < 10000){
+        //     MMotor->setPWM(-10);
+        // }
+        // if (10000 <= clock->now()) {
+        //     clock->reset();
+        // }
 
         clock->sleep(4); /* 4msec周期起動 */
     }
