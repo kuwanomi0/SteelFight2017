@@ -144,19 +144,29 @@ void controller_task(intptr_t unused)
 	int32_t motor_ang_l, motor_ang_r;
 	int gyro, volt;
 
-    pwm_L = 50;
-    pwm_R = 50;
+    pwm_L = 0;
+    pwm_R = 0;
     pwm_M = 0;
 
-    if (bt_cmd == 2) {
-        pwm_L = -50;
+    if (bt_cmd == 'a') {
+        pwm_R = 30;
+        pwm_L = -30;
     }
-    if (bt_cmd == 3) {
-        pwm_R = -50;
+    if (bt_cmd == 'd') {
+        pwm_R = -30;
+        pwm_L = 30;
     }
-    if (bt_cmd == 4) {
-        pwm_L = 0;
-        pwm_R = 0;
+    if (bt_cmd == 'w') {
+        pwm_R = 30;
+        pwm_L = 30;
+    }
+    if (bt_cmd == 's') {
+        pwm_R = -30;
+        pwm_L = -30;
+    }
+    if (bt_cmd == 'e') {
+        pwm_R = 100;
+        pwm_L = 100;
     }
     if (bt_cmd == 5) {
         pwm_L = 0;
@@ -271,14 +281,20 @@ void bt_task(intptr_t unused)
         case '0':
             bt_cmd = 0;
             break;
-        case '2':
-            bt_cmd = 2;
+        case 'w':
+            bt_cmd = 'w';
             break;
-        case '3':
-            bt_cmd = 3;
+        case 'a':
+            bt_cmd = 'a';
             break;
-        case '4':
-            bt_cmd = 4;
+        case 's':
+            bt_cmd = 's';
+            break;
+        case 'd':
+            bt_cmd = 'd';
+            break;
+        case 'e':
+            bt_cmd = 'e';
             break;
         case '5':
             bt_cmd = 5;
