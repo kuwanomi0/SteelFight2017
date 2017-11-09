@@ -50,7 +50,7 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 #define GYRO_OFFSET  0          /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define LIGHT_WHITE  40         /* 白色の光センサ値 */
 #define LIGHT_BLACK  0          /* 黒色の光センサ値 */
-#define SONAR_ALERT_DISTANCE 15 /* 超音波センサによる障害物検知距離[cm] */
+#define SONAR_ALERT_DISTANCE 4 /* 超音波センサによる障害物検知距離[cm] */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -137,7 +137,8 @@ void main_task(intptr_t unused)
 //*****************************************************************************
 void controller_task(intptr_t unused)
 {
-    int32_t motor_ang_l, motor_ang_r;
+    int32_t motor_ang_l, motor_ang_r, motor_ang_m;
+    int32_t motor_ang_mD = 0;
     int gyro, volt;
 
     pwm_L = 0;
@@ -175,18 +176,28 @@ void controller_task(intptr_t unused)
         pwm_R = 0;
         pwm_M = -70;
     }
-    // if (sonar_alert() == 1){ /* 障害物検知 */
-    //     pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
-    // }
-
 
     /* 倒立振子制御API に渡すパラメータを取得する */
     motor_ang_l = ev3_motor_get_counts(left_motor);
     motor_ang_r = ev3_motor_get_counts(right_motor);
+    motor_ang_m = ev3_motor_get_counts(m_motor);
     gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
     volt = ev3_battery_voltage_mV();
 
+    if(sonar_alert() == 1) {
+        if(-12 <= (motor_ang_m - motor_ang_mD) && (motor_ang_m - motor_ang_mD) < 13) {
+            pwm_L = 0;
+            pwm_R = 0;
+            pwm_M = 0;
+        }
+        else {
+            pwm_L = 0;
+            pwm_R = 0;
+            pwm_M = -70;
+        }
+    }
 
+    motor_ang_mD = motor_ang_m;
 
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
@@ -249,6 +260,7 @@ static int sonar_alert(void)
          * EV3の場合は、要確認
          */
         distance = ev3_ultrasonic_sensor_get_distance(sonar_sensor);
+        syslog(LOG_NOTICE, "DEBUG, 距離:%5d \r", distance);
         if ((distance <= SONAR_ALERT_DISTANCE) && (distance >= 0)) {
             alert = 1; /* 障害物を検知 */
         } else {
