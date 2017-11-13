@@ -95,8 +95,8 @@ void main_task(intptr_t unused)
 
     /* スタート待機 */
     while(1) {
-        if (bt_cmd == 1) {
-            break; /* リモートスタート */
+        if (bt_cmd == 1 || ev3_button_is_pressed(ENTER_BUTTON)) {
+            break;
         }
         tslp_tsk(10); /* 10msecウェイト */
     }
