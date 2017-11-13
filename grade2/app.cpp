@@ -13,8 +13,13 @@
  */
 #define VERSION "task_1.0"
 
+
 #include "ev3api.h"
 #include "app.h"
+#include "PID.h"
+
+//#include <ev3api_sensor.h>
+
 
 #if defined(BUILD_MODULE)
 #include "module_cfg.h"
@@ -48,8 +53,13 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 #define GYRO_OFFSET  0          /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define LIGHT_WHITE  40         /* 白色の光センサ値 */
-#define LIGHT_BLACK  0          /* 黒色の光センサ値 */
+#define RGB_WHITE      630      /* 白色のRGBセンサ合計値 */
+#define RGB_BLACK       30      /* 黒色のRGBセンサ合計値*/
+#define RGB_TARGET     300      /* 中央の境界線のRGBセンサ合計値 */
+#define RGB_NULL         5      /* 何もないときのRGBセンサ合計値 */
+#define KP_WALK      0.10F      /* 走行用定数P */
+#define KI_WALK      0.000F      /* 走行用定数I */
+#define KD_WALK      0.01F      /* 走行用定数D */
 #define SONAR_ALERT_DISTANCE 15 /* 超音波センサによる障害物検知距離[cm] */
 
 /* LCDフォントサイズ */
@@ -60,9 +70,15 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int sonar_alert(void);
 
+/* インスタンスの生成 */
+PID pid_walk(KP_WALK, KI_WALK, KD_WALK); /* 走行用のPIDインスタンス */
+
+
 static signed char forward;      /* 前後進命令 */
 static signed char turn;         /* 旋回命令 */
 static signed char pwm_L, pwm_R, pwm_M; /* 左右モータPWM出力 */
+static rgb_raw_t   rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
+
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -137,15 +153,54 @@ void main_task(intptr_t unused)
 //*****************************************************************************
 void controller_task(intptr_t unused)
 {
+    int rotation_flag = 0;
     int32_t motor_ang_l, motor_ang_r;
     int gyro, volt;
+    //rgb_raw_t rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
 
     pwm_L = 0;
     pwm_R = 0;
     pwm_M = 0;
 
+
+    if (rotation_flag == 0) {
+        if (bt_cmd == 'd') {
+                pwm_R = 30;
+                pwm_L = -30;
+                rotation_flag = 1;
+            }
+            if (bt_cmd == 'a') {
+                pwm_R = -30;
+                pwm_L = 30;
+                rotation_flag = 1;
+            }
+            if (bt_cmd == 'w') {
+                pwm_R = 30;
+                pwm_L = 30;
+                rotation_flag = 1;
+            }
+            if (bt_cmd == 's') {
+                pwm_R = -30;
+                pwm_L = -30;
+                rotation_flag = 1;
+            }
+        }
+    else {
+        if ((bt_cmd == 'd' ||
+             bt_cmd == 'a' ||
+             bt_cmd == 'w' ||
+             bt_cmd == 's')) {
+
+                 pwm_R = 0;
+                 pwm_L = 0;
+
+            rotation_flag = 0;
+        }
+    }
+
+
     // ショボいラジコン操作
-    if (bt_cmd == 'a') {
+    /*if (bt_cmd == 'a') {
         pwm_R = 30;
         pwm_L = -30;
     }
@@ -160,7 +215,7 @@ void controller_task(intptr_t unused)
     if (bt_cmd == 's') {
         pwm_R = -30;
         pwm_L = -30;
-    }
+    }*/
     if (bt_cmd == 'e') {
         pwm_R = 100;
         pwm_L = 100;
@@ -175,16 +230,24 @@ void controller_task(intptr_t unused)
         pwm_R = 0;
         pwm_M = -70;
     }
-    // if (sonar_alert() == 1){ /* 障害物検知 */
-    //     pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
-    // }
-
+    if (sonar_alert() == 1){ /* 障害物検知 */
+         pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
+     }
+    //color_sensor->getRawColor(rgb_level); /* RGB取得 */
+    ev3_color_sensor_get_rgb_raw(color_sensor, &rgb_level); /* RGB取得 */
+    //turn =  pid_walk.calcControl(RGB_TARGET - (rgb_level.b));
+    forward = 10;        /* ロボの速度 */
+    turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - (rgb_level.r + rgb_level.g + rgb_level.b));
 
     /* 倒立振子制御API に渡すパラメータを取得する */
     motor_ang_l = ev3_motor_get_counts(left_motor);
     motor_ang_r = ev3_motor_get_counts(right_motor);
     gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
     volt = ev3_battery_voltage_mV();
+
+    pwm_L = forward + turn;    // <3>
+    pwm_R = forward + turn;       // <3>
+
 
 
 
