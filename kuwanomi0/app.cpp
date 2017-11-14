@@ -1037,39 +1037,20 @@ static void tail_control(int32_t angle)
 //*****************************************************************************
 void bt_task(intptr_t unused)
 {
-    while(1)
-    {
+    while(1) {
         uint8_t c = fgetc(bt); /* 受信 */
-        switch(c)
-        {
+        switch(c) {
         case '1':
-        case 'l':
             bt_cmd = 1;
             break;
-        case '2':
-        case 'r':
-            bt_cmd = 2;
-            break;
-        case '3':
-            bt_cmd = 3;
-            break;
-        case '6':
-            bt_cmd = 6;
-            break;
-        case '9':
-            bt_cmd = 9;
-            break;
-        case '[':   // 上
-            bt_cmd = '[';
-            break;
-        case ']':   // 下
-            bt_cmd = ']';
-            break;
-        case 't':
-            bt_cmd = 't';
+        case '0':
+            bt_cmd = 0;
             break;
         case 'w':
             bt_cmd = 'w';
+            break;
+        case 'a':
+            bt_cmd = 'a';
             break;
         case 's':
             bt_cmd = 's';
@@ -1077,56 +1058,19 @@ void bt_task(intptr_t unused)
         case 'd':
             bt_cmd = 'd';
             break;
-        case 'a':
-            bt_cmd = 'a';
+        case 'e':
+            bt_cmd = 'e';
             break;
-        case 'W':
-            bt_cmd = 'W';
+        case '5':
+            bt_cmd = 5;
             break;
-        case 'S':
-            bt_cmd = 'S';
-            break;
-        case 'D':
-            bt_cmd = 'D';
-            break;
-        case 'A':
-            bt_cmd = 'A';
-            break;
-        case '@':
-            bt_cmd = '@';
-            break;
-        case '\r':
-            bt_cmd = '\r';
-            break;
-        case 'q':
-            bt_cmd = 'q';
-            break;
-        case ' ':
-            bt_cmd = ' ';
-            break;
-        case 'b':
-            bt_cmd = 'b';
-            break;
-        case 'n':
-            bt_cmd = 'n';
+        case '6':
+            bt_cmd = 6;
             break;
         default:
             break;
         }
-        if (!(bt_cmd == '[' || bt_cmd == ']')) {    // TODO uとdのときはエコーバックしないようにしたい。未完成
-            fputc(c, bt); /* エコーバック */
-        }
-        if (bt_cmd == 1 || bt_cmd == 2) {
-            clock->reset();
-        }
-        else if (bt_cmd == '\r' && lapTime_count < 100) {
-            syslog(LOG_NOTICE, "DEBUG, TIME : //////////////////////////////\r");
-            syslog(LOG_NOTICE, "DEBUG, TIME : %d.%03d s , 距離 : %d.%d m\r", clock->now() / 1000, clock->now() % 1000, distance_now / 1000, distance_now % 1000);
-            syslog(LOG_NOTICE, "DEBUG, TIME : //////////////////////////////\r");
-            time[0][lapTime_count] = clock->now();
-            time[1][lapTime_count] = distance_now;
-            lapTime_count++;
-        }
+        fputc(c, bt); /* エコーバック */
     }
 }
 
