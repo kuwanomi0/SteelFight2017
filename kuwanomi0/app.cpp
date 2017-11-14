@@ -5,8 +5,12 @@
  ** 概要 : 2輪倒立振子ライントレースロボットのTOPPERS/HRP2用C++サンプルプログラム
  **
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
+ * @version task_1.0 : 2017.06.28
+ *    +ディレクトリ名をtouchguy に変更する
+ *    +コントロールタスク追加し周期ハンドラで動かす
  ******************************************************************************
- **/
+ */
+#define VERSION "kuwanomi0_0.0"
 
 #include "ev3api.h"
 #include "app.h"
@@ -186,9 +190,11 @@ void main_task(intptr_t unused)
     clock_gate  = new Clock();
 
     /* LCD画面表示 */
+    char buf[64];
+
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
-    ev3_lcd_draw_string("EV3way-ET 16JZ", 0, CALIB_FONT_HEIGHT*1);
-    ev3_lcd_draw_string("             M", 0, CALIB_FONT_HEIGHT*2);
+    sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
+    ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
 
     /* 尻尾モーターのリセット */
     for(int i = 0; i < 300; i++){
