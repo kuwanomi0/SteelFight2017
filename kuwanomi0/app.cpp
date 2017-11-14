@@ -83,7 +83,6 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
 static void tail_control(int32_t angle);
-static void run_result(void);
 static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt);
 static void setCourse(int device_num, Course* gCourseR, Course* gCourseL);
 static void BTconState();
@@ -146,10 +145,6 @@ static Course gCourse[] {
     { 0,     0, 30,  0, 0.1900F, 0.0001F, 1.4000F }, //スタート
     { 1, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F } //終わりのダミー
 };
-
-/* タイム格納用 */
-static int time[2][100];
-static int lapTime_count = 0;
 
 /* 走行距離 */
 static int32_t distance_now; /*現在の走行距離を格納する変数 */
@@ -442,9 +437,8 @@ void main_task(intptr_t unused)
         colorSensor->getRawColor(rgb_level); /* RGB取得 */
         rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
-        /* バックボタン, 転倒時停止処理 */
-        if (ev3_button_is_pressed(BACK_BUTTON) || rgb_total <= RGB_NULL) {
-            run_result();
+        /* バックボタン */
+        if (ev3_button_is_pressed(BACK_BUTTON)) {
             break;
         }
 
@@ -1071,23 +1065,6 @@ void bt_task(intptr_t unused)
             break;
         }
         fputc(c, bt); /* エコーバック */
-    }
-}
-
-//*****************************************************************************
-// 関数名 : run_result
-// 引数 : unused
-// 返り値 : なし
-// 概要 : 走行結果を表示する
-//*****************************************************************************
-static void run_result() {
-    if (lapTime_count > 0) {
-        syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
-        for (int i = 0; i < lapTime_count; i++) {
-            syslog(LOG_NOTICE, "TIME(%3d) : %d.%03d s , 距離 : %d.%03d m",i + 1 , time[0][i] / 1000, time[0][i] % 1000, time[1][i] / 1000, time[1][i] % 1000);
-            syslog(LOG_NOTICE, "(%2d cm/s)\r",  (time[1][i] / 10) / (time[0][i] / 1000));
-        }
-        syslog(LOG_NOTICE, "DEBUG, TIME --------------------\r");
     }
 }
 
