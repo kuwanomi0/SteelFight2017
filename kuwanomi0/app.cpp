@@ -86,13 +86,12 @@ Motor*          leftMotor;
 Motor*          rightMotor;
 Motor*          tailMotor;
 Clock*          clock;
-Clock*          clock_gate;
 
 /* インスタンスの生成 */
 Balancer balancer;
+Distance distance_way;
 PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
 PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
-Distance distance_way;
 
 /* デフォルト */
 static Course gCourse[] {
@@ -128,7 +127,6 @@ void main_task(intptr_t unused)
     rightMotor  = new Motor(PORT_B);
     tailMotor   = new Motor(PORT_A);
     clock       = new Clock();
-    clock_gate  = new Clock();
 
     /* LCD画面表示 */
     char buf[64];
