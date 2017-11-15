@@ -76,7 +76,6 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
 static void tail_control(int32_t angle);
-static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt);
 static void BTconState();
 /* オブジェクトへのポインタ定義 */
 TouchSensor*    touchSensor;
@@ -108,12 +107,12 @@ static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格
 /* メインタスク */
 void main_task(intptr_t unused)
 {
+    int8_t    pwm_L, pwm_R;
     int8_t    forward;      /* 前後進命令 */
     int8_t    turn;         /* 旋回命令 */
     int course_number = 0; //TODO :2 コース関連 だいぶ改善されました
     int count = 0;  //TODO :2 コース関連 だいぶ改善されました
     int roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
-    int tail_i = 0; //TODO :4 停止用コマンド
     int forward_course = 50; //TODO :2 コース関連 だいぶ改善されました
     int turn_course = 0; //TODO :2 コース関連 だいぶ改善されました
     uint16_t rgb_total = RGB_TARGET;
@@ -134,7 +133,6 @@ void main_task(intptr_t unused)
 
     /* LCD画面表示 */
     char buf[64];
-
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
     sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
     ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
@@ -176,7 +174,6 @@ void main_task(intptr_t unused)
     /**
     * Main loop for the self-balance control algorithm
     */
-    int gray = 0;
     int radioCtl_enable = 0;
     int balancer_enable = 1;
     int tail_flag = 0;
@@ -328,30 +325,20 @@ void main_task(intptr_t unused)
             }
         }
 
-        if (balancer_enable == 1) {
-            /* 倒立振子制御APIを呼び出し、倒立走行するための */
-            /* 左右モータ出力値を得る */
-            balance(forward, turn, gyro, motor_ang_r, motor_ang_l, volt);
-        }
+        /* 倒立振子制御APIを呼び出し、倒立走行するための */
+        /* 左右モータ出力値を得る */
+        balancer.setCommand(forward, turn);
+        balancer.update(gyro, motor_ang_r, motor_ang_l, volt);
+        pwm_L = balancer.getPwmRight();
+        pwm_R = balancer.getPwmLeft();
+
+        leftMotor->setPWM(pwm_L);
+        rightMotor->setPWM(pwm_R);
 
 
         /* ログを送信する処理 */
-        if (bt_cmd == 1 || gray == 1)
-        {
-            syslog(LOG_NOTICE, "C:%2d, D:%5d, G:%3d, V:%5d, RGB%3d\r", course_number, distance_now, gyro, volt, rgb_total);
-            bt_cmd = 0;
-        }
+        syslog(LOG_NOTICE, "V:%5d\r", volt);
 
-        // TODO :4 停止用コマンド
-        if (bt_cmd == 6)
-        {
-            if (tail_i++ < 500/4) {
-                tail_control(TAIL_ANGLE_STOP);
-            }
-            else {
-                break;
-            }
-        }
 
         BTconState();
 
@@ -471,23 +458,6 @@ void bt_task(intptr_t unused)
         }
         fputc(c, bt); /* エコーバック */
     }
-}
-
-//*****************************************************************************
-// 関数名 : balance
-// 引数 : balancer, forward, turn, gyro, motor_ang_r, motor_ang_l, volt
-// 返り値 : なし
-// 概要 : バランス走行制御を行う
-//*****************************************************************************
-static void balance(int8_t forward, int8_t turn, int32_t gyro, int32_t motor_ang_r, int32_t motor_ang_l, int32_t volt) {
-    int8_t    pwm_L, pwm_R;
-    balancer.setCommand(forward, turn);
-    balancer.update(gyro, motor_ang_r, motor_ang_l, volt);
-    pwm_L = balancer.getPwmRight();
-    pwm_R = balancer.getPwmLeft();
-
-    leftMotor->setPWM(pwm_L);
-    rightMotor->setPWM(pwm_R);
 }
 
 //*****************************************************************************
