@@ -24,7 +24,6 @@
 #include "Clock.h"
 #include "PID.h"
 #include "Distance.h"
-#include "Course.h"
 #include <string.h>
 
 using namespace ev3api;
@@ -93,12 +92,6 @@ Distance distance_way;
 PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
 PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
 
-/* デフォルト */
-static Course gCourse[] {
-    { 0,     0, 30,  0, 0.1900F, 0.0001F, 1.4000F }, //スタート
-    { 1, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F } //終わりのダミー
-};
-
 /* 走行距離 */
 static int32_t distance_now; /*現在の走行距離を格納する変数 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
@@ -109,12 +102,10 @@ void main_task(intptr_t unused)
     int8_t    pwm_L, pwm_R;
     int8_t    forward;      /* 前後進命令 */
     int8_t    turn;         /* 旋回命令 */
-    int count = 0;  //TODO :2 コース関連 だいぶ改善されました
     int forward_course = 50; //TODO :2 コース関連 だいぶ改善されました
     int turn_course = 0; //TODO :2 コース関連 だいぶ改善されました
     uint16_t rgb_total = RGB_TARGET;
     uint16_t rgb_before;
-    Course* mCourse = NULL;
 
     /* 各オブジェクトを生成・初期化する */
     touchSensor = new TouchSensor(PORT_1);
@@ -147,7 +138,6 @@ void main_task(intptr_t unused)
         /* デフォルコース */
         if (touchSensor->isPressed() || bt_cmd == 1)
         {
-            mCourse = gCourse;
             break; /* タッチセンサが押された */
         }
 
@@ -185,14 +175,6 @@ void main_task(intptr_t unused)
 
         /* 現在の走行距離を取得 */
         distance_now = distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount());
-
-        /* 区間変更を監視、行うプログラム */
-        if (distance_now >= mCourse[count].getDis()) { //TODO :2 コース関連 だいぶ改善されました ここがまだ改良できる
-            forward_course = mCourse[count].getForward();
-            turn_course    = mCourse[count].getTurn();
-            pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);
-            count++;
-        }
 
         if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
