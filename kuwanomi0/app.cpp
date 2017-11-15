@@ -14,7 +14,6 @@
 
 #include "ev3api.h"
 #include "app.h"
-#include "TouchSensor.h"
 #include "SonarSensor.h"
 #include "ColorSensor.h"
 #include "GyroSensor.h"
@@ -58,13 +57,12 @@ static int32_t sonar_alert(void);
 static void BTconState();
 
 /* オブジェクトへのポインタ定義 */
-TouchSensor*    touchSensor;
-SonarSensor*    sonarSensor;
 ColorSensor*    colorSensor;
+SonarSensor*    sonarSensor;
 GyroSensor*     gyroSensor;
+Motor*          armMotor;
 Motor*          leftMotor;
 Motor*          rightMotor;
-Motor*          tailMotor;
 Clock*          clock;
 
 /* インスタンスの生成 */
@@ -84,13 +82,12 @@ void main_task(intptr_t unused)
     uint16_t rgb_before;
 
     /* 各オブジェクトを生成・初期化する */
-    touchSensor = new TouchSensor(PORT_1);
-    sonarSensor = new SonarSensor(PORT_2);
-    colorSensor = new ColorSensor(PORT_3);
-    gyroSensor  = new GyroSensor(PORT_4);
-    leftMotor   = new Motor(PORT_C);
-    rightMotor  = new Motor(PORT_B);
-    tailMotor   = new Motor(PORT_A);
+    sonarSensor = new SonarSensor(PORT_1);
+    colorSensor = new ColorSensor(PORT_2);
+    gyroSensor  = new GyroSensor(PORT_3);
+    armMotor   = new Motor(PORT_A);
+    leftMotor   = new Motor(PORT_B);
+    rightMotor  = new Motor(PORT_C);
     clock       = new Clock();
 
     /* LCD画面表示 */
@@ -112,7 +109,7 @@ void main_task(intptr_t unused)
     while(1)
     {
         /* デフォルコース */
-        if (touchSensor->isPressed() || bt_cmd == 1)
+        if (bt_cmd == 1)
         {
             break; /* タッチセンサが押された */
         }
@@ -178,9 +175,9 @@ void main_task(intptr_t unused)
 
         clock->sleep(4); /* 4msec周期起動 */
     }
+    armMotor->reset();
     leftMotor->reset();
     rightMotor->reset();
-    tailMotor->reset();
 
 
     ter_tsk(BT_TASK);
