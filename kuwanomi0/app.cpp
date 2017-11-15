@@ -174,10 +174,6 @@ void main_task(intptr_t unused)
     /**
     * Main loop for the self-balance control algorithm
     */
-    int radioCtl_enable = 0;
-    int balancer_enable = 1;
-    int tail_flag = 0;
-    int tailCtl_enable = 0;
     while(1)
     {
         int32_t motor_ang_l, motor_ang_r;
@@ -193,9 +189,6 @@ void main_task(intptr_t unused)
 
         /* 尻尾の制御 */
         if (bt_cmd == 6) {  // TODO :4 停止用コマンド
-        }
-        else if (tailCtl_enable == 0) {
-            // if文をすり抜ける
         }
         else if(roket++ < 25) {  //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
             tail_control(TAIL_ANGLE_ROKET); /* ロケット走行用角度に制御 */
@@ -248,82 +241,6 @@ void main_task(intptr_t unused)
         motor_ang_r = rightMotor->getCount();
         gyro = gyroSensor->getAnglerVelocity();
         volt = ev3_battery_voltage_mV();
-
-        if (bt_cmd == 'q' && radioCtl_enable == 0) {
-            radioCtl_enable = 1;
-        }
-        else if (bt_cmd == 'q' && radioCtl_enable == 1) {
-            radioCtl_enable = 0;
-        }
-        if (radioCtl_enable == 1) {
-            forward = 0;
-            turn = 0;
-        }
-        if (radioCtl_enable == 1) {
-            syslog(LOG_NOTICE, "%d,%d,%d,%d,%d,%d,%d\r", rgb_level.r, rgb_level.g, rgb_level.b, rgb_level.r + rgb_level.g + rgb_level.b, distance_now, gyro, volt);
-            /* 遅いラジコン */
-            if (bt_cmd == 'w') {
-                forward = 50;
-                turn = 0;
-            }
-            if (bt_cmd == 's') {
-                forward = -50;
-                turn = 0;
-            }
-            if (bt_cmd == 'a') {
-                forward = 0;
-                turn = -10;
-            }
-            if (bt_cmd == 'd') {
-                forward = 0;
-                turn = 10;
-            }
-            /* 速いラジコン */
-            if (bt_cmd == 'W') {
-                forward = -150;
-                turn = 0;
-            }
-            if (bt_cmd == 'S') {
-                forward = 150;
-                turn = 0;
-            }
-            if (bt_cmd == 'A') {
-                forward = 0;
-                turn = -30;
-            }
-            if (bt_cmd == 'D') {
-                forward = 0;
-                turn = 30;
-            }
-            if (bt_cmd == ' ') {
-                forward = 0;
-                turn = 0;
-            }
-            /* ラジコン尻尾 */
-            if (bt_cmd == '[') {
-                tail_control(tailMotor->getCount() + 1);
-            }
-            if (bt_cmd == ']') {
-                tail_control(tailMotor->getCount() - 1);
-            }
-            /* ラジコン尻尾出し入れ */
-            if (bt_cmd == 'n' && tail_flag == 0) {
-                tail_control(TAIL_ANGLE_STOP);
-                tail_flag = 1;
-            }
-            if (bt_cmd == 'n' && tail_flag == 1) {
-                tail_control(TAIL_ANGLE_DRIVE);
-                tail_flag = 0;
-                tailCtl_enable = 1;
-            }
-            /* バランサー切り替え */
-            if (balancer_enable == 1 && bt_cmd == 'b') {
-                balancer_enable = 0;
-            }
-            if (balancer_enable == 0 && bt_cmd == 'b') {
-                balancer_enable = 1;
-            }
-        }
 
         /* 倒立振子制御APIを呼び出し、倒立走行するための */
         /* 左右モータ出力値を得る */
