@@ -110,7 +110,6 @@ void main_task(intptr_t unused)
     int8_t    pwm_L, pwm_R;
     int8_t    forward;      /* 前後進命令 */
     int8_t    turn;         /* 旋回命令 */
-    int course_number = 0; //TODO :2 コース関連 だいぶ改善されました
     int count = 0;  //TODO :2 コース関連 だいぶ改善されました
     int roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
     int forward_course = 50; //TODO :2 コース関連 だいぶ改善されました
@@ -179,14 +178,6 @@ void main_task(intptr_t unused)
         int32_t motor_ang_l, motor_ang_r;
         int32_t gyro, volt;
 
-        /* 参照しているコース配列が切り替わったことをLEDで知らせます */
-        if((course_number % 2) == 1) {  /* 奇数配列参照時、赤 */
-            ev3_led_set_color(LED_RED);
-        }
-        else {                          /* 偶数配列参照時、緑 */
-            ev3_led_set_color(LED_GREEN);
-        }
-
         /* 尻尾の制御 */
         if (bt_cmd == 6) {  // TODO :4 停止用コマンド
         }
@@ -214,7 +205,6 @@ void main_task(intptr_t unused)
 
         /* 区間変更を監視、行うプログラム */
         if (distance_now >= mCourse[count].getDis()) { //TODO :2 コース関連 だいぶ改善されました ここがまだ改良できる
-            course_number  = mCourse[count].getCourse_num();
             forward_course = mCourse[count].getForward();
             turn_course    = mCourse[count].getTurn();
             pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);
