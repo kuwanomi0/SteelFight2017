@@ -75,8 +75,8 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
-static void tail_control(int32_t angle);
 static void BTconState();
+
 /* オブジェクトへのポインタ定義 */
 TouchSensor*    touchSensor;
 SonarSensor*    sonarSensor;
@@ -110,12 +110,10 @@ void main_task(intptr_t unused)
     int8_t    forward;      /* 前後進命令 */
     int8_t    turn;         /* 旋回命令 */
     int count = 0;  //TODO :2 コース関連 だいぶ改善されました
-    int roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
     int forward_course = 50; //TODO :2 コース関連 だいぶ改善されました
     int turn_course = 0; //TODO :2 コース関連 だいぶ改善されました
     uint16_t rgb_total = RGB_TARGET;
     uint16_t rgb_before;
-    int8_t tail_flags = 0;
     Course* mCourse = NULL;
 
     /* 各オブジェクトを生成・初期化する */
@@ -175,19 +173,6 @@ void main_task(intptr_t unused)
     {
         int32_t motor_ang_l, motor_ang_r;
         int32_t gyro, volt;
-
-        /* 尻尾の制御 */
-        if (bt_cmd == 6) {  // TODO :4 停止用コマンド
-        }
-        else if(roket++ < 25) {  //TODO :3 ロケットスタートと呼ぶにはまだ怪しい、改良必須
-            tail_control(TAIL_ANGLE_ROKET); /* ロケット走行用角度に制御 */
-        }
-        else if(tail_flags == 1){
-            tail_control(80); /* 階段時に使用する角度 */
-        }
-        else {
-            tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
-        }
 
         rgb_before = rgb_total; //LPF用前処理
         colorSensor->getRawColor(rgb_level); /* RGB取得 */
@@ -294,29 +279,6 @@ static int32_t sonar_alert(void)
     }
 
     return alert;
-}
-
-
-//*****************************************************************************
-// 関数名 : tail_control
-// 引数 : angle (モータ目標角度[度])
-// 返り値 : 無し
-// 概要 : 走行体完全停止用モータの角度制御
-//*****************************************************************************
-static void tail_control(int32_t angle)
-{
-    int pwm = (int)pid_tail.calcControl(angle - tailMotor->getCount()); /* PID制御 */
-    /* PWM出力飽和処理 */
-    if (pwm > PWM_ABS_MAX)
-    {
-        pwm = PWM_ABS_MAX;
-    }
-    else if (pwm < -PWM_ABS_MAX)
-    {
-        pwm = -PWM_ABS_MAX;
-    }
-
-    tailMotor->setPWM(pwm);
 }
 
 //*****************************************************************************
