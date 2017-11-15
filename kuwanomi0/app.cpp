@@ -105,41 +105,6 @@ PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
 PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
 Distance distance_way;
 
-/* Lコース */
-static Course gCourseL[] {  // TODO 2: コース関連 だいぶ改善されました これで30.36secでた。
-    { 0,     0, 22,  0, 0.0500F, 0.0000F, 1.2000F }, //スタート
-    { 1,  2000,112,  0, 0.1500F, 0.0001F, 2.2000F }, //大きく右
-    { 2,  3927,115,  0, 0.1300F, 0.0002F, 1.7000F }, //左
-    { 3,  4754,121,  0, 0.0700F, 0.0000F, 1.6000F }, //直
-    { 4,  5209,115,  0, 0.1150F, 0.0002F, 1.8000F }, //左
-    { 5,  6134,122,  0, 0.0800F, 0.0000F, 1.6000F }, //直
-    { 6,  6674,115,  0, 0.1300F, 0.0002F, 2.0000F }, //左
-    { 7,  7562,110,  0, 0.1800F, 0.0002F, 1.9000F }, //右
-    { 8,  8800,122,  0, 0.0450F, 0.0000F, 1.6000F }, //直GOOLまで
-    { 9, 10030,122,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {10, 10351, 80,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-    {11, 11000, 30,  0, 0.1150F, 0.0002F, 1.5000F }, //左
-    {12, 11476, 30,  0, 0.0200F, 0.0000F, 0.2000F }, //灰
-    {13, 11766, 30,  0, 0.1900F, 0.0000F, 1.4000F }, //階段
-    {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
-};
-
-/* Rコース */
-static Course gCourseR[]  {  //TODO :2 コース関連 だいぶ改善されました これで31.25secでた
-    { 0,     0, 22,  0, 0.1400F, 0.0000F, 1.7000F }, //スタート
-    { 1,  2240,113,  0, 0.1600F, 0.0002F, 1.6900F }, //大きく右
-    { 2,  5400,113,  0, 0.1500F, 0.0001F, 1.8000F }, //左やや直進
-    { 3,  6350,110,  0, 0.1660F, 0.0002F, 1.4500F }, //強く左
-    { 4,  7150,110,  0, 0.1600F, 0.0002F, 1.6000F }, //緩やかに大きく右
-    { 5,  8750,122,  0, 0.1500F, 0.0000F, 1.5000F }, //直GOOLまで
-    { 6, 10380,110,  2, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-    { 7, 10475, 10,  0, 0.0000F, 0.0000F, 0.0000F }, //直GOOLまで
-    { 8, 10550, 80,  0, 0.1200F, 0.0002F, 1.5000F }, //左
-    { 9, 11900, 20,  0, 0.0000F, 0.0000F, 0.0000F }, //灰
-    {10, 12150, 10,  0, 0.1200F, 0.0002F, 0.6000F }, //ルックアップ
-    {99, 99999,  1,  0, 0.0000F, 0.0000F, 0.0000F }  //終わりのダミー
-};
-
 /* デフォルト */
 static Course gCourse[] {
     { 0,     0, 30,  0, 0.1900F, 0.0001F, 1.4000F }, //スタート
@@ -207,178 +172,16 @@ void main_task(intptr_t unused)
 
     int device_num = RoboIdentification();
 
-    setCourse(2, gCourseR, gCourseL);
-    if (1 <= device_num && device_num <= 2) {
-        setCourse(device_num, gCourseR, gCourseL);
-    }
-
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
     /* スタート待機 */
-    double angle = (double)TAIL_ANGLE_STAND_UP;
-    int rotation_flag = 0;
-    int run_flag = 0;
-    int ctlspeed;
     while(1)
     {
-        tail_control(angle); /* 完全停止用角度に制御、調整も可 */
-
-        /* Lコース */
-        if (bt_cmd == 1)
-        {
-            mCourse = gCourseL;
-            break; /* リモートスタート */
-        }
-        /* Rコース */
-        if (bt_cmd == 2)
-        {
-            mCourse = gCourseR;
-            break; /* リモートスタート */
-        }
         /* デフォルコース */
-        if (touchSensor->isPressed() || bt_cmd == 3)
+        if (touchSensor->isPressed() || bt_cmd == 1)
         {
             mCourse = gCourse;
             break; /* タッチセンサが押された */
-        }
-
-        /* ラジコン操作 */
-        if (bt_cmd == 'd' && rotation_flag == 0) {
-            ev3_led_set_color(LED_ORANGE);
-            leftMotor->setPWM(18);
-            rightMotor->setPWM(-17);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if (bt_cmd == 'a' && rotation_flag == 0) {
-            ev3_led_set_color(LED_ORANGE);
-            leftMotor->setPWM(-18);
-            rightMotor->setPWM(17);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if (bt_cmd == 'w' && rotation_flag == 0) {
-            ev3_led_set_color(LED_ORANGE);
-            leftMotor->setPWM(18);
-            rightMotor->setPWM(18);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if (bt_cmd == 's' && rotation_flag == 0) {
-            ev3_led_set_color(LED_ORANGE);
-            leftMotor->setPWM(-18);
-            rightMotor->setPWM(-18);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if ((bt_cmd == 'd' ||
-             bt_cmd == 'a' ||
-             bt_cmd == 'w' ||
-             bt_cmd == 's') && rotation_flag == 1) {
-            ev3_led_set_color(LED_GREEN);
-            leftMotor->setPWM(0);
-            rightMotor->setPWM(0);
-
-            bt_cmd = 0;
-            rotation_flag = 0;
-        }
-
-
-        // スタート前の尻尾調整
-        if (ev3_button_is_pressed(DOWN_BUTTON) || bt_cmd == ']') {
-            angle -= 0.1;
-            bt_cmd = 0; // コマンドリセット
-            syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
-        }
-        if (ev3_button_is_pressed(UP_BUTTON) || bt_cmd == '[') {
-            angle += 0.1;
-            bt_cmd = 0; // コマンドリセット
-            syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
-        }
-
-        if (bt_cmd == '@') {
-            syslog(LOG_NOTICE, "DEBUG, angle : %d, RealAngle : %d\r", (int)angle, tailMotor->getCount());
-        }
-
-        // 回転
-        if (bt_cmd == 9 && rotation_flag == 0) {
-            syslog(LOG_NOTICE, "DEBUG, 回転\r");
-            leftMotor->setPWM(18);
-            rightMotor->setPWM(-18);
-            bt_cmd = 0;
-            rotation_flag = 1;
-        }
-        if (bt_cmd == 9 && rotation_flag == 1) {
-            syslog(LOG_NOTICE, "DEBUG, 回転停止\r");
-            leftMotor->setPWM(0);
-            rightMotor->setPWM(0);
-            bt_cmd = 0;
-            rotation_flag = 0;
-        }
-
-        // ラジコン操作
-        if (bt_cmd == 't' && run_flag == 0) {
-            syslog(LOG_NOTICE, "DEBUG, 前進\r");
-            leftMotor->setPWM(10);
-            rightMotor->setPWM(10);
-            bt_cmd = 0;
-            run_flag = 1;
-        }
-        if (bt_cmd == 't' && run_flag == 1) {
-            syslog(LOG_NOTICE, "DEBUG, 前進停止\r");
-            for (int i = 50; i >= 0; i--) {
-                leftMotor->setPWM(i);
-                rightMotor->setPWM(i);
-            }
-            bt_cmd = 0;
-            run_flag = 0;
-        }
-        // ラジコン操作2
-        if (bt_cmd == 'w') {    // 前進
-            ctlspeed = 10;  // ラジコンのスピード
-            while (ctlspeed >= 0) {
-                leftMotor->setPWM(ctlspeed);
-                rightMotor->setPWM(ctlspeed);
-                ctlspeed--;
-                // 以下遅延処理
-                clock->reset();
-                while (clock->now() < 500) {
-                    // 遅延
-                }
-            }
-            bt_cmd = 0;
-        }
-        if (bt_cmd == 's') {    // 後進
-            ctlspeed = -10;  // ラジコンのスピード
-            while (ctlspeed <= 0) {
-                leftMotor->setPWM(ctlspeed);
-                rightMotor->setPWM(ctlspeed);
-                ctlspeed++;
-                // 以下遅延処理
-                clock->reset();
-                while (clock->now() < 500) {
-                    // 遅延
-                }
-            }
-            bt_cmd = 0;
-        }
-        if (bt_cmd == 'd') {
-            turn = 10;
-            clock->reset();
-            while (clock->now() < 500) {
-                // 何もしない
-            }
-            turn = 0;
-            bt_cmd = 0;
-        }
-        if (bt_cmd == 'a') {
-            turn = -10;
-            clock->reset();
-            while (clock->now() < 500) {
-                // 何もしない
-            }
-            turn = 0;
-            bt_cmd = 0;
         }
 
         BTconState();
