@@ -68,13 +68,6 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define LOOK_UP_COLOR         28 /* ルックアップゲート用尻尾だしトレース */
 #define STAIRS_COLOR          40 /* 階段用尻尾だしトレース */
 
-/* サウンド */
-#define NOTE_C4 (261.63)
-#define NOTE_B6 (1975.53)
-#define MY_SOUND_MANUAL_STOP (100)
-#define VOLUME 50
-#define TONE NOTE_C4
-
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
 #define CALIB_FONT_WIDTH (6/* magic number*/)
@@ -155,13 +148,6 @@ void main_task(intptr_t unused)
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
     sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
     ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
-
-    /* 尻尾モーターのリセット */
-    for(int i = 0; i < 300; i++){
-        tailMotor->setPWM(-3);
-        clock->wait(1);
-    }
-    tailMotor->reset();
 
     /* Open Bluetooth file */
     bt = ev3_serial_open_file(EV3_SERIAL_BT);
@@ -252,8 +238,6 @@ void main_task(intptr_t unused)
         if ( 110 >= rgb_level.r && rgb_level.g <= 110 &&
          300 < (rgb_level.r + rgb_level.g + rgb_level.b) && hard_flag == 3) {
             gray = 1;
-            ev3_speaker_set_volume(VOLUME);
-            ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
         }
         else {
             gray = 0;
@@ -281,8 +265,6 @@ void main_task(intptr_t unused)
 /*========================ゲートをくぐる=========================*/
         if (sonar_alert() == 1 && hard_flag >= 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
-            ev3_speaker_set_volume(VOLUME);
-            ev3_speaker_play_tone(TONE, MY_SOUND_MANUAL_STOP);
 
             for (int angle = 79; angle >= 70; angle--)
             {
