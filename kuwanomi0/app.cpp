@@ -14,8 +14,6 @@
 
 #include "ev3api.h"
 #include "app.h"
-#include "balancer.h"
-#include "BalancerCpp.h"
 #include "TouchSensor.h"
 #include "SonarSensor.h"
 #include "ColorSensor.h"
@@ -73,7 +71,6 @@ Motor*          tailMotor;
 Clock*          clock;
 
 /* インスタンスの生成 */
-Balancer balancer;
 Distance distance_way;
 PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
 

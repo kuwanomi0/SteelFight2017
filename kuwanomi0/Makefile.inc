@@ -1,6 +1,6 @@
-APPL_COBJS += balancer.o balancer_param.o
+APPL_COBJS +=
 
-APPL_CXXOBJS += BalancerCpp.o PID.o Distance.o
+APPL_CXXOBJS += PID.o Distance.o
 
 SRCLANG := c++
 
