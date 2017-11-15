@@ -103,13 +103,13 @@ static Course gCourse[] {
 
 /* 走行距離 */
 static int32_t distance_now; /*現在の走行距離を格納する変数 */
+static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
 
 /* メインタスク */
 void main_task(intptr_t unused)
 {
     int8_t    forward;      /* 前後進命令 */
     int8_t    turn;         /* 旋回命令 */
-    rgb_raw_t rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
     int course_number = 0; //TODO :2 コース関連 だいぶ改善されました
     int count = 0;  //TODO :2 コース関連 だいぶ改善されました
     int roket = 0;  //TODO :3 ロケットスタート用変数 タイマーの役割をしています
@@ -253,144 +253,9 @@ void main_task(intptr_t unused)
             pid_walk.setPID(mCourse[count].getP() * PIDX, mCourse[count].getI() * PIDX, mCourse[count].getD() * PIDX);
             count++;
         }
-        if (distance_now >= 10000) {
-            hard_flag = 1;
-        }
 
-/*========================ゲートをくぐる=========================*/
-        if (sonar_alert() == 1 && hard_flag >= 1) {/* 障害物検知 */
+        if (sonar_alert() == 1) {/* 障害物検知 */
             forward = turn = 0; /* 障害物を検知したら停止 */
-
-            for (int angle = 79; angle >= 70; angle--)
-            {
-                if (ev3_button_is_pressed(BACK_BUTTON)) break;
-                if(angle >= 77){
-                    leftMotor->setPWM(16);
-                    rightMotor->setPWM(16);
-                }else{
-                    leftMotor->setPWM(0);
-                    rightMotor->setPWM(0);
-                }
-                clock->reset();
-                clock->sleep(1);
-                while (clock->now() <= 400){
-                    tail_control(angle);
-                    clock->sleep(4);
-                }
-            }
-            /* 前進一回目のくぐり */
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 7200) {
-                leftMotor->setPWM(4);
-                rightMotor->setPWM(4);
-                tail_control(68);
-            }
-            /* 一度停止して尻尾の調整 */
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 2000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(68);
-            }
-            /* バックしてくぐる */
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 15000) {
-                leftMotor->setPWM(-2);
-                rightMotor->setPWM(-2);
-                tail_control(68);
-            }
-            /* 前進して2回目のくぐり */
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 9000) {
-                int pwmL, pwmR;
-                colorSensor->getRawColor(rgb_level); /* RGB取得 */
-                pwmL = 5 + (rgb_level.r - LOOK_UP_COLOR) * 0.4;
-                pwmR = 5 + (LOOK_UP_COLOR - rgb_level.r) * 0.4;
-                // syslog(LOG_NOTICE, "RED:%3d\r", rgb_level.r);
-                leftMotor->setPWM(pwmL);
-                rightMotor->setPWM(pwmR);
-                tail_control(68);
-            }
-
-            /* ここから起き上がり */
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 200) {
-                leftMotor->setPWM(-20);
-                rightMotor->setPWM(-20);
-                tail_control(73);
-            }
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 1000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(78);
-            }
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 1000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(85);
-            }
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 1000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(90);
-            }
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 1000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(92);
-            }
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 1000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(93);
-            }
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 1000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(95);
-            }
-            clock->reset();
-            clock->sleep(1);
-            while (clock->now() <= 1000) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(96);
-            }
-            while (clock->now() <= 100) {
-                leftMotor->setPWM(0);
-                rightMotor->setPWM(0);
-                tail_control(96);
-            }
-
-            /*
-                ここから走行情報のリセット
-                これをしないと今の段階では倒立制御ができずすぐに倒れる
-            */
-            /* 走行モーターエンコーダーリセット */
-            leftMotor->reset();
-            rightMotor->reset();
-
-            /* ジャイロセンサーリセット */
-            gyroSensor->reset();
-            balancer.init(GYRO_OFFSET); /* 倒立振子API初期化 */
-            hard_flag = 3;
         }
         else {
             if (bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
