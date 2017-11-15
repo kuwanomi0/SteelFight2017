@@ -40,12 +40,9 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
-#define GYRO_OFFSET          -1  /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
 #define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
 #define RGB_TARGET          325  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
-#define RGB_NULL              7  /* 何もないときのセンサの合計 */
-#define PIDX               1.00  /* PID倍率 */
 #define KLP                 0.6  /* LPF用係数*/
 
 /* 超音波センサーに関するマクロ */
