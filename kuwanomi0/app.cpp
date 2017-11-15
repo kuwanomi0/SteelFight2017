@@ -48,24 +48,10 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_TARGET          325  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define RGB_NULL              7  /* 何もないときのセンサの合計 */
 #define PIDX               1.00  /* PID倍率 */
-#define FORWARD_X          1.00  /* forward倍率 電源出力低下時にここで調整 */
 #define KLP                 0.6  /* LPF用係数*/
-#define GOOL_DISTANCE     11800  /* 難所の処理を有効にする距離 */
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
-
-/* 尻尾に関するマクロ */
-#define TAIL_ANGLE_STAND_UP   97 /* 完全停止時の角度[度] */
-#define TAIL_ANGLE_ROKET      99 /* ロケットダッシュ時の角度[度] */
-#define TAIL_ANGLE_DRIVE       3 /* バランス走行時の角度[度] */
-#define TAIL_ANGLE_STOP       87 /* 停止処理時の角度[度] */
-#define KP_TAIL             2.7F /* 尻尾用定数P */
-#define KI_TAIL            0.02F /* 尻尾用定数I */
-#define KD_TAIL            14.0F /* 尻尾用定数D */
-#define PWM_ABS_MAX           60 /* 完全停止用モータ制御PWM絶対最大値 */
-#define LOOK_UP_COLOR         28 /* ルックアップゲート用尻尾だしトレース */
-#define STAIRS_COLOR          40 /* 階段用尻尾だしトレース */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -90,7 +76,6 @@ Clock*          clock;
 Balancer balancer;
 Distance distance_way;
 PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
-PID pid_tail(KP_TAIL, KI_TAIL, KD_TAIL); /* 尻尾用のPIDインスタンス */
 
 /* 走行距離 */
 static int32_t distance_now; /*現在の走行距離を格納する変数 */
@@ -99,11 +84,8 @@ static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    int8_t    pwm_L, pwm_R;
-    int8_t    forward;      /* 前後進命令 */
-    int8_t    turn;         /* 旋回命令 */
-    int forward_course = 50; //TODO :2 コース関連 だいぶ改善されました
-    int turn_course = 0; //TODO :2 コース関連 だいぶ改善されました
+    int8_t    pwm_L = 0;
+    int8_t    pwm_R = 0;
     uint16_t rgb_total = RGB_TARGET;
     uint16_t rgb_before;
 
@@ -152,7 +134,6 @@ void main_task(intptr_t unused)
 
     /* ジャイロセンサーリセット */
     gyroSensor->reset();
-    balancer.init(GYRO_OFFSET); /* 倒立振子API初期化 */  // <1>
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
@@ -164,6 +145,12 @@ void main_task(intptr_t unused)
         int32_t motor_ang_l, motor_ang_r;
         int32_t gyro, volt;
 
+        /* 倒立振子制御API に渡すパラメータを取得する */
+        motor_ang_l = leftMotor->getCount();
+        motor_ang_r = rightMotor->getCount();
+        gyro = gyroSensor->getAnglerVelocity();
+        volt = ev3_battery_voltage_mV();
+
         rgb_before = rgb_total; //LPF用前処理
         colorSensor->getRawColor(rgb_level); /* RGB取得 */
         rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
@@ -174,42 +161,23 @@ void main_task(intptr_t unused)
         }
 
         /* 現在の走行距離を取得 */
-        distance_now = distance_way.distanceAll(leftMotor->getCount(), rightMotor->getCount());
+        distance_now = distance_way.distanceAll(motor_ang_l, motor_ang_r);
 
         if (sonar_alert() == 1) {/* 障害物検知 */
-            forward = turn = 0; /* 障害物を検知したら停止 */
+            pwm_L = 0;
+            pwm_R = 0;
         }
         else {
-            if (bt_cmd == 6) //TODO 4: おまけコマンド停止処理用
-            {
-                forward = 0; //TODO 4: おまけコマンド停止処理用
-            }
-            else {
-                forward = forward_course * FORWARD_X; /* 前進命令 */
-            }
-            /* PID制御 */
-            turn = pid_walk.calcControl(RGB_TARGET - rgb_total) + turn_course;
+            pwm_L = 50;
+            pwm_R = 50;
         }
-
-        /* 倒立振子制御API に渡すパラメータを取得する */
-        motor_ang_l = leftMotor->getCount();
-        motor_ang_r = rightMotor->getCount();
-        gyro = gyroSensor->getAnglerVelocity();
-        volt = ev3_battery_voltage_mV();
-
-        /* 倒立振子制御APIを呼び出し、倒立走行するための */
-        /* 左右モータ出力値を得る */
-        balancer.setCommand(forward, turn);
-        balancer.update(gyro, motor_ang_r, motor_ang_l, volt);
-        pwm_L = balancer.getPwmRight();
-        pwm_R = balancer.getPwmLeft();
 
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
 
 
         /* ログを送信する処理 */
-        syslog(LOG_NOTICE, "V:%5d\r", volt);
+        syslog(LOG_NOTICE, "VOLT:%5d  GYRO:%3d\r", volt, gyro);
 
 
         BTconState();
