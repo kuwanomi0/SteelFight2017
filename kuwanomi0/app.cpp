@@ -51,7 +51,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define KLP                 0.6  /* LPF用係数*/
 
 /* 超音波センサーに関するマクロ */
-#define SONAR_ALERT_DISTANCE 20  /* 超音波センサによる障害物検知距離[cm] */
+#define SONAR_ALERT_DISTANCE 2  /* 超音波センサによる障害物検知距離[cm] */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -88,8 +88,8 @@ static uint16_t rgb_before;
 void main_task(intptr_t unused)
 {
     /* 各オブジェクトを生成・初期化する */
-    sonarSensor = new SonarSensor(PORT_1);
-    colorSensor = new ColorSensor(PORT_2);
+    colorSensor = new ColorSensor(PORT_1);
+    sonarSensor = new SonarSensor(PORT_2);
     gyroSensor  = new GyroSensor(PORT_3);
     armMotor    = new Motor(PORT_A);
     leftMotor   = new Motor(PORT_B);
@@ -164,7 +164,7 @@ void controller_task(intptr_t unused)
     pwm_R = 0;
 
     /* バックボタン */
-    if (ev3_button_is_pressed(BACK_BUTTON)) {
+    if (ev3_button_is_pressed(BACK_BUTTON) || bt_cmd == 0) {
         wup_tsk(MAIN_TASK);        //メインタスクを起床する
         ev3_stp_cyc(CYC_HANDLER);  //周期ハンドラを停止する
     }
@@ -241,7 +241,7 @@ void controller_task(intptr_t unused)
 
 
     /* ログを送信する処理 */
-    syslog(LOG_NOTICE, "VOLT:%5d  GYRO:%3d\r", volt, gyro);
+    syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
 
     BTconState();
 
