@@ -83,6 +83,8 @@ extern "C" {
 
 extern void main_task(intptr_t exinf);
 extern void bt_task(intptr_t exinf);
+extern void controller_task(intptr_t exinf);
+extern void cyc_handler(intptr_t exinf);
 
 #endif /* TOPPERS_MACRO_ONLY */
 

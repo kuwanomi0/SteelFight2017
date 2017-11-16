@@ -10,7 +10,7 @@
  *    +コントロールタスク追加し周期ハンドラで動かす
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.1"
+#define VERSION "kuwanomi0_0.2"
 
 #include "ev3api.h"
 #include "app.h"
@@ -81,13 +81,12 @@ static int32_t distance_now; /*現在の走行距離を格納する変数 */
 static int8_t pwm_A = 0;     /* アームモータPWM出力 */
 static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
+static uint16_t rgb_total = RGB_TARGET;
+static uint16_t rgb_before;
 
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    uint16_t rgb_total = RGB_TARGET;
-    uint16_t rgb_before;
-
     /* 各オブジェクトを生成・初期化する */
     sonarSensor = new SonarSensor(PORT_1);
     colorSensor = new ColorSensor(PORT_2);
@@ -131,57 +130,13 @@ void main_task(intptr_t unused)
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
-    /**
-    * Main loop for the self-balance control algorithm
-    */
-    while(1)
-    {
-        int32_t motor_ang_l, motor_ang_r;
-        int32_t gyro, volt;
+    ER er = ev3_sta_cyc(CYC_HANDLER);   //周期ハンドラを起動
+    sprintf(buf, "main_task: error_code=%d", MERCD(er) );   // APIのエラーコードの表示
+    //ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);     // の仕方です。
 
-        /* バックボタン */
-        if (ev3_button_is_pressed(BACK_BUTTON)) {
-            break;
-        }
+    /* 自タスク(メインタスク）を待ち状態にする */
+    slp_tsk();
 
-        /* パラメータを取得する */
-        motor_ang_l = leftMotor->getCount();
-        motor_ang_r = rightMotor->getCount();
-        gyro = gyroSensor->getAnglerVelocity();
-        volt = ev3_battery_voltage_mV();
-
-        /* 現在の走行距離を取得 */
-        distance_now = distance_way.distanceAll(motor_ang_l, motor_ang_r);
-
-        /* 色の取得 */
-        rgb_before = rgb_total; //LPF用前処理
-        colorSensor->getRawColor(rgb_level); /* RGB取得 */
-        rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
-
-
-        if (sonar_alert() == 1) {/* 障害物検知 */
-            pwm_A =  0;
-            pwm_L =  0;
-            pwm_R =  0;
-        }
-        else {
-            pwm_A =  0;
-            pwm_L = 50;
-            pwm_R = 50;
-        }
-
-        armMotor->setPWM(pwm_A);
-        leftMotor->setPWM(pwm_L);
-        rightMotor->setPWM(pwm_R);
-
-
-        /* ログを送信する処理 */
-        syslog(LOG_NOTICE, "VOLT:%5d  GYRO:%3d\r", volt, gyro);
-
-        BTconState();
-
-        clock->sleep(4); /* 4msec周期起動 */
-    }
     armMotor->reset();
     leftMotor->reset();
     rightMotor->reset();
@@ -193,6 +148,73 @@ void main_task(intptr_t unused)
     ext_tsk();
 }
 
+//*****************************************************************************
+// 関数名 : controller_task
+// 引数   : 拡張情報
+// 返り値 : なし
+// 概要   : コントローラータスク
+//*****************************************************************************
+void controller_task(intptr_t unused)
+    {
+    int32_t motor_ang_l, motor_ang_r;
+    int32_t gyro, volt;
+
+    /* バックボタン */
+    if (ev3_button_is_pressed(BACK_BUTTON)) {
+        wup_tsk(MAIN_TASK);        //メインタスクを起床する
+        ev3_stp_cyc(CYC_HANDLER);  //周期ハンドラを停止する
+    }
+
+    /* パラメータを取得する */
+    motor_ang_l = leftMotor->getCount();
+    motor_ang_r = rightMotor->getCount();
+    gyro = gyroSensor->getAnglerVelocity();
+    volt = ev3_battery_voltage_mV();
+
+    /* 現在の走行距離を取得 */
+    distance_now = distance_way.distanceAll(motor_ang_l, motor_ang_r);
+
+    /* 色の取得 */
+    rgb_before = rgb_total; //LPF用前処理
+    colorSensor->getRawColor(rgb_level); /* RGB取得 */
+    rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
+
+
+    if (sonar_alert() == 1) {/* 障害物検知 */
+        pwm_A =  0;
+        pwm_L =  0;
+        pwm_R =  0;
+    }
+    else {
+        pwm_A =  0;
+        pwm_L = 50;
+        pwm_R = 50;
+    }
+
+    armMotor->setPWM(pwm_A);
+    leftMotor->setPWM(pwm_L);
+    rightMotor->setPWM(pwm_R);
+
+
+    /* ログを送信する処理 */
+    syslog(LOG_NOTICE, "VOLT:%5d  GYRO:%3d\r", volt, gyro);
+
+    BTconState();
+
+    ext_tsk();
+}
+
+//*****************************************************************************
+// 関数名 : cyc_handler
+// 引数   : 拡張情報
+// 返り値 : なし
+// 概要   : 周期ハンドラ(4ms)
+//*****************************************************************************
+void cyc_handler(intptr_t unused)
+{
+    // コントローラタスクを起動する
+    act_tsk(CONTROLLER_TASK);
+}
 
 //*****************************************************************************
 // 関数名 : sonar_alert
