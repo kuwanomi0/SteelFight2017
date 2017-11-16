@@ -10,7 +10,7 @@
  *    +コントロールタスク追加し周期ハンドラで動かす
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.2"
+#define VERSION "kuwanomi0_0.3"
 
 #include "ev3api.h"
 #include "app.h"
@@ -159,6 +159,10 @@ void controller_task(intptr_t unused)
     int32_t motor_ang_l, motor_ang_r;
     int32_t gyro, volt;
 
+    pwm_A = 0;
+    pwm_L = 0;
+    pwm_R = 0;
+
     /* バックボタン */
     if (ev3_button_is_pressed(BACK_BUTTON)) {
         wup_tsk(MAIN_TASK);        //メインタスクを起床する
@@ -179,21 +183,61 @@ void controller_task(intptr_t unused)
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
-
-    if (sonar_alert() == 1) {/* 障害物検知 */
-        pwm_A =  0;
-        pwm_L =  0;
-        pwm_R =  0;
+    // ショボいラジコン操作
+    if (bt_cmd == 'a') {
+        pwm_L = -30;
+        pwm_R = 30;
     }
-    else {
-        pwm_A =  0;
-        pwm_L = 50;
-        pwm_R = 50;
+    if (bt_cmd == 'd') {
+        pwm_L = 30;
+        pwm_R = -30;
+    }
+    if (bt_cmd == 'w') {
+        pwm_L = 30;
+        pwm_R = 30;
+    }
+    if (bt_cmd == 's') {
+        pwm_L = -30;
+        pwm_R = -30;
+    }
+    if (bt_cmd == 'e') {
+        pwm_L = 100;
+        pwm_R = 100;
+    }
+    if (bt_cmd == 5) {
+        pwm_A = 70;
+        pwm_L = 0;
+        pwm_R = 0;
+    }
+    if (bt_cmd == 6) {
+        pwm_A = -70;
+        pwm_L = 0;
+        pwm_R = 0;
+    }
+    if (sonar_alert() == 1){ /* 障害物検知 */
+        pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
     }
 
-    armMotor->setPWM(pwm_A);
-    leftMotor->setPWM(pwm_L);
-    rightMotor->setPWM(pwm_R);
+    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
+    /* 出力0時に、その都度設定する */
+    if (pwm_A == 0) {
+        armMotor->stop();
+    } else {
+        armMotor->setPWM(pwm_A);
+    }
+
+    if (pwm_L == 0) {
+        leftMotor->stop();
+    } else {
+        leftMotor->setPWM(pwm_L);
+    }
+
+    if (pwm_R == 0) {
+        rightMotor->stop();
+    } else {
+        rightMotor->setPWM(pwm_R);
+    }
+
 
 
     /* ログを送信する処理 */
