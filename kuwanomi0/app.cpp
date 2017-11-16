@@ -10,7 +10,7 @@
  *    +コントロールタスク追加し周期ハンドラで動かす
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.3"
+#define VERSION "kuwanomi0_0.4"
 
 #include "ev3api.h"
 #include "app.h"
