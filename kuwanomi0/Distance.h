@@ -15,5 +15,6 @@ private:
 
 public:
     int distanceAll(int left, int right);
+    int distanceAll(int motor_ang);
 };
 #endif
