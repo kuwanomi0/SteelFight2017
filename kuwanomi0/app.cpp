@@ -70,14 +70,15 @@ Distance distance_way;
 PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
 
 /* 走行距離 */
-static int32_t distance_now; /*現在の走行距離を格納する変数 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
+static int32_t distance_now; /*現在の走行距離を格納する変数 */
+static int8_t pwm_A = 0;     /* アームモータPWM出力 */
+static int8_t pwm_L = 0;     /* 左モータPWM出力 */
+static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    int8_t    pwm_L = 0;
-    int8_t    pwm_R = 0;
     uint16_t rgb_total = RGB_TARGET;
     uint16_t rgb_before;
 
@@ -85,7 +86,7 @@ void main_task(intptr_t unused)
     sonarSensor = new SonarSensor(PORT_1);
     colorSensor = new ColorSensor(PORT_2);
     gyroSensor  = new GyroSensor(PORT_3);
-    armMotor   = new Motor(PORT_A);
+    armMotor    = new Motor(PORT_A);
     leftMotor   = new Motor(PORT_B);
     rightMotor  = new Motor(PORT_C);
     clock       = new Clock();
@@ -106,22 +107,18 @@ void main_task(intptr_t unused)
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
     /* スタート待機 */
-    while(1)
-    {
-        /* デフォルコース */
-        if (bt_cmd == 1)
-        {
-            break; /* タッチセンサが押された */
+    while(1) {
+        if (bt_cmd == 1 || ev3_button_is_pressed(ENTER_BUTTON)) {
+            break;
         }
-
         BTconState();
-
         clock->sleep(10); /* 10msecウェイト */
     }
 
-    /* 走行モーターエンコーダーリセット */
+    /* モーターエンコーダーリセット */
     leftMotor->reset();
     rightMotor->reset();
+    armMotor->reset();
 
     /* ジャイロセンサーリセット */
     gyroSensor->reset();
@@ -136,40 +133,44 @@ void main_task(intptr_t unused)
         int32_t motor_ang_l, motor_ang_r;
         int32_t gyro, volt;
 
-        /* 倒立振子制御API に渡すパラメータを取得する */
-        motor_ang_l = leftMotor->getCount();
-        motor_ang_r = rightMotor->getCount();
-        gyro = gyroSensor->getAnglerVelocity();
-        volt = ev3_battery_voltage_mV();
-
-        rgb_before = rgb_total; //LPF用前処理
-        colorSensor->getRawColor(rgb_level); /* RGB取得 */
-        rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
-
         /* バックボタン */
         if (ev3_button_is_pressed(BACK_BUTTON)) {
             break;
         }
 
+        /* パラメータを取得する */
+        motor_ang_l = leftMotor->getCount();
+        motor_ang_r = rightMotor->getCount();
+        gyro = gyroSensor->getAnglerVelocity();
+        volt = ev3_battery_voltage_mV();
+
         /* 現在の走行距離を取得 */
         distance_now = distance_way.distanceAll(motor_ang_l, motor_ang_r);
 
+        /* 色の取得 */
+        rgb_before = rgb_total; //LPF用前処理
+        colorSensor->getRawColor(rgb_level); /* RGB取得 */
+        rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
+
+
         if (sonar_alert() == 1) {/* 障害物検知 */
-            pwm_L = 0;
-            pwm_R = 0;
+            pwm_A =  0;
+            pwm_L =  0;
+            pwm_R =  0;
         }
         else {
+            pwm_A =  0;
             pwm_L = 50;
             pwm_R = 50;
         }
 
+        armMotor->setPWM(pwm_A);
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
 
 
         /* ログを送信する処理 */
         syslog(LOG_NOTICE, "VOLT:%5d  GYRO:%3d\r", volt, gyro);
-
 
         BTconState();
 
