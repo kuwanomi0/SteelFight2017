@@ -10,7 +10,7 @@
  *    +コントロールタスク追加し周期ハンドラで動かす
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.0"
+#define VERSION "kuwanomi0_0.1"
 
 #include "ev3api.h"
 #include "app.h"
@@ -24,6 +24,12 @@
 #include <string.h>
 
 using namespace ev3api;
+
+#if defined(BUILD_MODULE)
+#include "module_cfg.h"
+#else
+#include "kernel_cfg.h"
+#endif
 
 #define DEBUG
 
