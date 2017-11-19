@@ -77,7 +77,6 @@ PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
-static int32_t distance_now; /*現在の走行距離を格納する変数 */
 static int8_t pwm_A = 0;     /* アームモータPWM出力 */
 static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
@@ -156,7 +155,7 @@ void main_task(intptr_t unused)
 //*****************************************************************************
 void controller_task(intptr_t unused)
     {
-    int32_t motor_ang_l, motor_ang_r;
+    int32_t motor_ang_L, motor_ang_R;
     int32_t gyro, volt;
 
     pwm_A = 0;
@@ -170,13 +169,13 @@ void controller_task(intptr_t unused)
     }
 
     /* パラメータを取得する */
-    motor_ang_l = leftMotor->getCount();
-    motor_ang_r = rightMotor->getCount();
+    motor_ang_L = leftMotor->getCount();
+    motor_ang_R = rightMotor->getCount();
     gyro = gyroSensor->getAnglerVelocity();
     volt = ev3_battery_voltage_mV();
 
     /* 現在の走行距離を取得 */
-    distance_now = distance_way.distanceAll(motor_ang_l, motor_ang_r);
+    distance_way.Distance_update(motor_ang_L, motor_ang_R);
 
     /* 色の取得 */
     rgb_before = rgb_total; //LPF用前処理
@@ -241,7 +240,8 @@ void controller_task(intptr_t unused)
 
 
     /* ログを送信する処理 */
-    syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
+    syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distance_way.Distance_getDistance());
 
     BTconState();
 
