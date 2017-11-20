@@ -59,6 +59,7 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 
 /* 関数プロトタイプ宣言 */
 static int sonar_alert(void);
+static void m_motor_initialize(void);
 
 static signed char forward;      /* 前後進命令 */
 static signed char turn;         /* 旋回命令 */
@@ -98,6 +99,28 @@ void main_task(intptr_t unused)
         if (bt_cmd == 1) {
             break; /* リモートスタート */
         }
+
+        pwm_M = 0;
+        /* 上下ボタンでアーム調整 */
+        if (ev3_button_is_pressed(UP_BUTTON)) {
+            pwm_M = 10;
+        }
+        if (ev3_button_is_pressed(DOWN_BUTTON)) {
+            pwm_M = -10;
+        }
+        if (ev3_button_is_pressed(ENTER_BUTTON)) {
+            m_motor_initialize();
+        }
+
+        if (pwm_M == 0) {
+            ev3_motor_stop(m_motor, true);
+        } else {
+            ev3_motor_set_power(m_motor, (int)pwm_M);
+        }
+
+        int32_t angle = ev3_motor_get_counts(m_motor);
+        // syslog(LOG_NOTICE, "angle: %d\r", angle);
+
         tslp_tsk(10); /* 10msecウェイト */
     }
 
@@ -146,12 +169,12 @@ void controller_task(intptr_t unused)
 
     // ショボいラジコン操作
     if (bt_cmd == 'a') {
-        pwm_R = 30;
-        pwm_L = -30;
+        pwm_R = 10;
+        pwm_L = -10;
     }
     if (bt_cmd == 'd') {
-        pwm_R = -30;
-        pwm_L = 30;
+        pwm_R = -10;
+        pwm_L = 10;
     }
     if (bt_cmd == 'w') {
         pwm_R = 30;
@@ -161,24 +184,30 @@ void controller_task(intptr_t unused)
         pwm_R = -30;
         pwm_L = -30;
     }
-    if (bt_cmd == 'e') {
+    if (bt_cmd == 'W') {
         pwm_R = 100;
         pwm_L = 100;
     }
     if (bt_cmd == 5) {
         pwm_L = 0;
         pwm_R = 0;
-        pwm_M = 70;
+        // pwm_M = 70;
+        setCount(45);
     }
     if (bt_cmd == 6) {
         pwm_L = 0;
         pwm_R = 0;
-        pwm_M = -70;
+        // pwm_M = -70;
+        setCount(0);
+    }
+    if (bt_cmd == ' ') {
+        pwm_L = 0;
+        pwm_R = 0;
+        pwm_M = 0;
     }
     // if (sonar_alert() == 1){ /* 障害物検知 */
     //     pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
     // }
-
 
     /* 倒立振子制御API に渡すパラメータを取得する */
     motor_ang_l = ev3_motor_get_counts(left_motor);
@@ -290,8 +319,8 @@ void bt_task(intptr_t unused)
         case 'd':
             bt_cmd = 'd';
             break;
-        case 'e':
-            bt_cmd = 'e';
+        case 'W':
+            bt_cmd = 'W';
             break;
         case '5':
             bt_cmd = 5;
@@ -299,9 +328,33 @@ void bt_task(intptr_t unused)
         case '6':
             bt_cmd = 6;
             break;
+        case ' ':
+            bt_cmd = ' ';
+            break;
         default:
             break;
         }
         fputc(c, bt); /* エコーバック */
     }
+}
+
+void m_motor_initialize(void) {
+    int32_t angle = ev3_motor_get_counts(m_motor);
+    int32_t last_angle = angle - 999;
+
+    syslog(LOG_NOTICE, "はさみ初期化前 angle: %d, last_angle: %d, if: %d\r", angle, last_angle, angle - last_angle);
+    while (angle - last_angle > 10) {
+        ev3_motor_rotate(m_motor, 50, 100, false);
+        last_angle = angle;
+
+        tslp_tsk(300);
+        angle = ev3_motor_get_counts(m_motor);
+        syslog(LOG_NOTICE, "はさみ初期化中 angle: %d, last_angle: %d, if: %d\r", angle, last_angle, angle - last_angle);
+    }
+    syslog(LOG_NOTICE, "はさみ初期化終了 angle: %d, last_angle: %d, if: %d\r", angle, last_angle, angle - last_angle);
+    ev3_motor_reset_counts(m_motor);
+}
+
+void setAngle(int32_t angle) {
+    setCount(angle);
 }
