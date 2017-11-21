@@ -80,6 +80,7 @@ static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格
 static int8_t pwm_A = 0;     /* アームモータPWM出力 */
 static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
+static int8_t pwmX = 0;
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
 
@@ -200,18 +201,38 @@ void controller_task(intptr_t unused)
         pwm_R = -30;
     }
     if (bt_cmd == 'e') {
-        pwm_L = 100;
-        pwm_R = 100;
+        pwm_L = pwmX;
+        pwm_R = pwmX;
     }
     if (bt_cmd == 5) {
-        pwm_A = 70;
-        pwm_L = 0;
-        pwm_R = 0;
+        if (pwmX >= -100) {
+            pwmX -= 1;
+            syslog(LOG_NOTICE, "%d\r", pwmX);
+        }
+        else {
+            syslog(LOG_NOTICE, "これ以上は下がりません\r");
+        }
+        bt_cmd = 'e';
+        pwm_L = pwmX;
+        pwm_R = pwmX;
+        // pwm_A = 70;
+        // pwm_L = 0;
+        // pwm_R = 0;
     }
     if (bt_cmd == 6) {
-        pwm_A = -70;
-        pwm_L = 0;
-        pwm_R = 0;
+        if (pwmX <= 100) {
+            pwmX += 1;
+            syslog(LOG_NOTICE, "%d\r", pwmX);
+        }
+        else {
+            syslog(LOG_NOTICE, "これ以上は上がりません\r");
+        }
+        bt_cmd = 'e';
+        pwm_L = pwmX;
+        pwm_R = pwmX;
+        // pwm_A = -70;
+        // pwm_L = 0;
+        // pwm_R = 0;
     }
     if (sonar_alert() == 1){ /* 障害物検知 */
         pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
@@ -241,7 +262,8 @@ void controller_task(intptr_t unused)
 
     /* ログを送信する処理 */
     // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
-    syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distance_way.Distance_getDistance());
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distance_way.Distance_getDistance());
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distance_way.Distance_getDistance(),(int)distance_way.Distance_getDistance4msL(),(int)distance_way.Distance_getDistance4msR());
 
     BTconState();
 
