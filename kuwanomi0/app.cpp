@@ -49,6 +49,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
 #define RGB_TARGET          325  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
+#define COLOR                160
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 2  /* 超音波センサによる障害物検知距離[cm] */
@@ -234,6 +235,10 @@ void controller_task(intptr_t unused)
         // pwm_L = 0;
         // pwm_R = 0;
     }
+    if (bt_cmd == 'c') {
+        pwm_L = 30 + (rgb_level.r - COLOR) * 0.07;
+        pwm_R = 30 + (COLOR - rgb_level.r) * 0.07;
+    }
     if (sonar_alert() == 1){ /* 障害物検知 */
         pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
     }
@@ -261,7 +266,7 @@ void controller_task(intptr_t unused)
 
 
     /* ログを送信する処理 */
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
+    syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
     // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distance_way.Distance_getDistance());
     // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distance_way.Distance_getDistance(),(int)distance_way.Distance_getDistance4msL(),(int)distance_way.Distance_getDistance4msR());
 
@@ -350,6 +355,9 @@ void bt_task(intptr_t unused)
         case 'e':
             bt_cmd = 'e';
             break;
+        case 'c':
+            bt_cmd = 'c';
+            break;
         case '5':
             bt_cmd = 5;
             break;
@@ -359,7 +367,7 @@ void bt_task(intptr_t unused)
         default:
             break;
         }
-        fputc(c, bt); /* エコーバック */
+        // fputc(c, bt); /* エコーバック */
     }
 }
 
