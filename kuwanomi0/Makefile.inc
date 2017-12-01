@@ -1,6 +1,6 @@
 APPL_COBJS +=
 
-APPL_CXXOBJS += PID.o Distance.o
+APPL_CXXOBJS += PID.o Distance.o Run.o
 
 SRCLANG := c++
 

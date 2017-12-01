@@ -5,12 +5,9 @@
  ** 概要 : 2輪倒立振子ライントレースロボットのTOPPERS/HRP2用C++サンプルプログラム
  **
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
- * @version task_1.0 : 2017.06.28
- *    +ディレクトリ名をtouchguy に変更する
- *    +コントロールタスク追加し周期ハンドラで動かす
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.4"
+#define VERSION "kuwanomi0_0.6"
 
 #include "ev3api.h"
 #include "app.h"
@@ -21,6 +18,7 @@
 #include "Clock.h"
 #include "PID.h"
 #include "Distance.h"
+#include "Run.h"
 #include <string.h>
 
 using namespace ev3api;
@@ -49,7 +47,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
 #define RGB_TARGET          325  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
-#define COLOR                160
+#define COLOR               160
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 2  /* 超音波センサによる障害物検知距離[cm] */
@@ -61,6 +59,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
+static void ev3_run(int8_t pwm_A, int8_t pwm_L, int8_t pwm_R);
 static void BTconState();
 
 /* オブジェクトへのポインタ定義 */
@@ -75,6 +74,7 @@ Clock*          clock;
 /* インスタンスの生成 */
 Distance distance_way;
 PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
+Run ev3_running;
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
@@ -243,27 +243,14 @@ void controller_task(intptr_t unused)
         pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
     }
 
-    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
-    /* 出力0時に、その都度設定する */
-    if (pwm_A == 0) {
-        armMotor->stop();
-    } else {
-        armMotor->setPWM(pwm_A);
-    }
+    ev3_running.setCommand(pwmX, 0);
 
-    if (pwm_L == 0) {
-        leftMotor->stop();
-    } else {
-        leftMotor->setPWM(pwm_L);
-    }
+    ev3_running.update();
 
-    if (pwm_R == 0) {
-        rightMotor->stop();
-    } else {
-        rightMotor->setPWM(pwm_R);
-    }
+    pwm_L = ev3_running.getPwmLeft();
+    pwm_R = ev3_running.getPwmRight();
 
-
+    ev3_run(pwm_A,pwm_L,pwm_R);
 
     /* ログを送信する処理 */
     syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
@@ -320,6 +307,34 @@ static int32_t sonar_alert(void)
     }
 
     return alert;
+}
+
+//*****************************************************************************
+// 関数名 : ev3_run
+// 引数 : int8_t pwm_A, int8_t pwm_L, int8_t pwm_R
+// 返り値 : なし
+// 概要 : 走行させるメソッド
+//*****************************************************************************
+static void ev3_run(int8_t pwm_A, int8_t pwm_L, int8_t pwm_R) {
+    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
+    /* 出力0時に、その都度設定する */
+    if (pwm_A == 0) {
+        armMotor->stop();
+    } else {
+        armMotor->setPWM(pwm_A);
+    }
+
+    if (pwm_L == 0) {
+        leftMotor->stop();
+    } else {
+        leftMotor->setPWM(pwm_L);
+    }
+
+    if (pwm_R == 0) {
+        rightMotor->stop();
+    } else {
+        rightMotor->setPWM(pwm_R);
+    }
 }
 
 //*****************************************************************************
