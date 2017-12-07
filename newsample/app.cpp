@@ -32,7 +32,6 @@ using namespace ev3api;
 #endif
 
 #define DEBUG
-
 #ifdef DEBUG
 #define _debug(x) (x)
 #else
@@ -45,10 +44,11 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
-#define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
-#define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          325  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_WHITE           800  /* 白色のRGBセンサの合計 */
+#define RGB_BLACK            80  /* 黒色のRGBセンサの合計 */
+#define RGB_TARGET          436  /*90 570 875*/ /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
+#define FORWARD             30
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 2  /* 超音波センサによる障害物検知距離[cm] */
@@ -73,7 +73,8 @@ Clock*          clock;
 
 /* インスタンスの生成 */
 Distance distance_way;
-PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
+PID pid_walk( 0.15F, 0.0F,   0.02F); /* 走行用のPIDインスタンス */
+////////////
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
@@ -83,6 +84,7 @@ static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
+//static int8_t forward;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -158,6 +160,9 @@ void controller_task(intptr_t unused)
     {
     int32_t motor_ang_l, motor_ang_r;
     int32_t gyro, volt;
+    int32_t pid = 0;
+    int32_t pid_L = 0;
+    int32_t pid_R = 0;
 
     pwm_A = 0;
     pwm_L = 0;
@@ -182,6 +187,29 @@ void controller_task(intptr_t unused)
     rgb_before = rgb_total; //LPF用前処理
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
+    pid = pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - rgb_total);
+    if (pid < 0) {
+        //黒の時
+        pid_L = -pid;
+    }
+    else {
+        //pid_L = -pid
+        pid_R = pid;
+    }
+
+    pwm_L = /*(rgb_total - RGB_TARGET) *0.1 + */ FORWARD + pid_L;
+    pwm_R = /*(RGB_TARGET - rgb_total) *0.1 + */ FORWARD + pid_R;
+
+    /*if (pwm_L < 0 && 50 < pwm_L) {
+        pwm_L = 10;
+    }
+    if (pwm_R < 0 && 50 < pwm_L) {
+        pwm_R = 10;
+    }*/
+
+    //pwm_L = 0;
+    //pwm_R = 0;
+
 
     // ショボいラジコン操作
     if (bt_cmd == 'a') {
@@ -241,7 +269,8 @@ void controller_task(intptr_t unused)
 
 
     /* ログを送信する処理 */
-    syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
+    syslog(LOG_NOTICE, "pid:%5d R%3d G:%3d B:%3d total:%3d\r", pid, rgb_level.r, rgb_level.g, rgb_level.b,
+                                                                                rgb_total);
 
     BTconState();
 
