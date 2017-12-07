@@ -52,7 +52,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define COLOR                160
 
 /* 超音波センサーに関するマクロ */
-#define SONAR_ALERT_DISTANCE 2  /* 超音波センサによる障害物検知距離[cm] */
+#define SONAR_ALERT_DISTANCE 30  /* 超音波センサによる障害物検知距離[cm] */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -81,7 +81,6 @@ static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格
 static int8_t pwm_A = 0;     /* アームモータPWM出力 */
 static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
-static int8_t pwmX = 0;
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
 
@@ -156,7 +155,7 @@ void main_task(intptr_t unused)
 // 概要   : コントローラータスク
 //*****************************************************************************
 void controller_task(intptr_t unused)
-    {
+{
     int32_t motor_ang_L, motor_ang_R;
     int32_t gyro, volt;
 
@@ -184,89 +183,33 @@ void controller_task(intptr_t unused)
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
-    // ショボいラジコン操作
-    if (bt_cmd == 'a') {
-        pwm_L = -30;
-        pwm_R = 30;
-    }
-    if (bt_cmd == 'd') {
-        pwm_L = 30;
-        pwm_R = -30;
-    }
-    if (bt_cmd == 'w') {
-        pwm_L = 30;
-        pwm_R = 30;
-    }
-    if (bt_cmd == 's') {
-        pwm_L = -30;
-        pwm_R = -30;
-    }
-    if (bt_cmd == 'e') {
-        pwm_L = pwmX;
-        pwm_R = pwmX;
-    }
-    if (bt_cmd == 5) {
-        if (pwmX >= -100) {
-            pwmX -= 1;
-            syslog(LOG_NOTICE, "%d\r", pwmX);
-        }
-        else {
-            syslog(LOG_NOTICE, "これ以上は下がりません\r");
-        }
-        bt_cmd = 'e';
-        pwm_L = pwmX;
-        pwm_R = pwmX;
-        // pwm_A = 70;
-        // pwm_L = 0;
-        // pwm_R = 0;
-    }
-    if (bt_cmd == 6) {
-        if (pwmX <= 100) {
-            pwmX += 1;
-            syslog(LOG_NOTICE, "%d\r", pwmX);
-        }
-        else {
-            syslog(LOG_NOTICE, "これ以上は上がりません\r");
-        }
-        bt_cmd = 'e';
-        pwm_L = pwmX;
-        pwm_R = pwmX;
-        // pwm_A = -70;
-        // pwm_L = 0;
-        // pwm_R = 0;
-    }
-    if (bt_cmd == 'c') {
-        pwm_L = 30 + (rgb_level.r - COLOR) * 0.07;
-        pwm_R = 30 + (COLOR - rgb_level.r) * 0.07;
-    }
-    if (sonar_alert() == 1){ /* 障害物検知 */
-        pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
-    }
-
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
     if (pwm_A == 0) {
         armMotor->stop();
-    } else {
+    }
+    else {
         armMotor->setPWM(pwm_A);
     }
 
     if (pwm_L == 0) {
         leftMotor->stop();
-    } else {
+    }
+    else {
         leftMotor->setPWM(pwm_L);
     }
 
     if (pwm_R == 0) {
         rightMotor->stop();
-    } else {
+    }
+    else {
         rightMotor->setPWM(pwm_R);
     }
 
 
 
     /* ログを送信する処理 */
-    syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
     // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distance_way.Distance_getDistance());
     // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distance_way.Distance_getDistance(),(int)distance_way.Distance_getDistance4msL(),(int)distance_way.Distance_getDistance4msR());
 
@@ -339,30 +282,6 @@ void bt_task(intptr_t unused)
             break;
         case '0':
             bt_cmd = 0;
-            break;
-        case 'w':
-            bt_cmd = 'w';
-            break;
-        case 'a':
-            bt_cmd = 'a';
-            break;
-        case 's':
-            bt_cmd = 's';
-            break;
-        case 'd':
-            bt_cmd = 'd';
-            break;
-        case 'e':
-            bt_cmd = 'e';
-            break;
-        case 'c':
-            bt_cmd = 'c';
-            break;
-        case '5':
-            bt_cmd = 5;
-            break;
-        case '6':
-            bt_cmd = 6;
             break;
         default:
             break;
