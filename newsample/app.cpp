@@ -48,7 +48,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_BLACK            80  /* 黒色のRGBセンサの合計 */
 #define RGB_TARGET          436  /*90 570 875*/ /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
-#define FORWARD             30
+#define FORWARD             20
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 2  /* 超_音波センサによる障害物検知距離[cm] */
@@ -78,7 +78,7 @@ Clock*          clock;
 
 /* インスタンスの生成 */
 Distance distance_way;
-PID pid_walk( 0.15F, 0.0F,   0.02F); /* 走行用のPIDインスタンス */
+PID pid_walk( 0.04F, 0.0F,   0.0F); /* 走行用のPIDインスタンス */
 ////////////
 
 /* 走行距離 */
@@ -219,7 +219,30 @@ void controller_task(intptr_t unused)
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     // int16_t gyroAngle = gyroSensor->getAngle();
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
-    
+
+    pid = pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - rgb_total);
+    if (pid < 0) {
+        //黒の時
+        pid_L = -pid;
+    }
+    else {
+        //pid_L = -pid
+        pid_R = pid;
+    }
+
+    pwm_L = /*(rgb_total - RGB_TARGET) *0.1*/ +  FORWARD + pid_L;
+    pwm_R = /*(RGB_TARGET - rgb_total) *0.1*/ +  FORWARD + pid_R;
+
+    /*if (pwm_L < 0 && 50 < pwm_L) {
+        pwm_L = 10;
+    }
+    if (pwm_R < 0 && 50 < pwm_L) {
+        pwm_R = 10;
+    }*/
+
+    //pwm_L = 0;
+    //pwm_R = 0;
+
     // ショボいラジコン操作
     if (bt_cmd == 'a') {
         pwm_L = -10;
