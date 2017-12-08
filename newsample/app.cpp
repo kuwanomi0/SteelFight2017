@@ -51,7 +51,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define FORWARD             30
 
 /* 超音波センサーに関するマクロ */
-#define SONAR_ALERT_DISTANCE 2  /* 超音波センサによる障害物検知距離[cm] */
+#define SONAR_ALERT_DISTANCE 2  /* 超_音波センサによる障害物検知距離[cm] */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -61,6 +61,11 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 /* 関数プロトタイプ宣言 */
 static int32_t sonar_alert(void);
 static void BTconState();
+static void armMotor_initialize(void);
+static void armMotor_grab(void);
+static void setAngle(int32_t angle);
+static int16_t controlAngle(void);
+static void controlAngle(int32_t angle);
 
 /* オブジェクトへのポインタ定義 */
 ColorSensor*    colorSensor;
@@ -85,6 +90,11 @@ static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
 //static int8_t forward;
+
+static int32_t disEnabled = 0;  // 距離で動作（0 : 無効, 1 : 有効）
+
+/* スタート（0）からの傾き */
+static int16_t thisAngle = 0;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -118,6 +128,26 @@ void main_task(intptr_t unused)
         if (bt_cmd == 1 || ev3_button_is_pressed(ENTER_BUTTON)) {
             break;
         }
+
+        if (ev3_button_is_pressed(RIGHT_BUTTON)) {
+            // armMotor_initialize();
+            armMotor_grab();
+        }
+
+        if (ev3_button_is_pressed(UP_BUTTON)) {
+            // armMotor->setCount(-100);
+            armMotor->setPWM(-10);
+            syslog(LOG_NOTICE, "getCount: %d\r", armMotor->getCount());
+
+        }
+        if (ev3_button_is_pressed(DOWN_BUTTON)) {
+            // armMotor->setCount(100);
+            armMotor->setPWM(10);
+        }
+        if (ev3_button_is_pressed(LEFT_BUTTON)) {
+            armMotor->stop();
+        }
+
         BTconState();
         clock->sleep(10); /* 10msecウェイト */
     }
@@ -175,52 +205,29 @@ void controller_task(intptr_t unused)
     }
 
     /* パラメータを取得する */
-    motor_ang_l = leftMotor->getCount();
-    motor_ang_r = rightMotor->getCount();
-    gyro = gyroSensor->getAnglerVelocity();
-    volt = ev3_battery_voltage_mV();
+     motor_ang_l = leftMotor->getCount();
+     motor_ang_r = rightMotor->getCount();
+     gyro = gyroSensor->getAnglerVelocity();
+     volt = ev3_battery_voltage_mV();
 
     /* 現在の走行距離を取得 */
     distance_way.Distance_update(motor_ang_l, motor_ang_r);
     distance_now = distance_way.Distance_getDistance();
 
-
     /* 色の取得 */
     rgb_before = rgb_total; //LPF用前処理
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
+    // int16_t gyroAngle = gyroSensor->getAngle();
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
-    pid = pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - rgb_total);
-    if (pid < 0) {
-        //黒の時
-        pid_L = -pid;
-    }
-    else {
-        //pid_L = -pid
-        pid_R = pid;
-    }
-
-    pwm_L = /*(rgb_total - RGB_TARGET) *0.1 + */ FORWARD + pid_L;
-    pwm_R = /*(RGB_TARGET - rgb_total) *0.1 + */ FORWARD + pid_R;
-
-    /*if (pwm_L < 0 && 50 < pwm_L) {
-        pwm_L = 10;
-    }
-    if (pwm_R < 0 && 50 < pwm_L) {
-        pwm_R = 10;
-    }*/
-
-    //pwm_L = 0;
-    //pwm_R = 0;
-
-
+    
     // ショボいラジコン操作
     if (bt_cmd == 'a') {
-        pwm_L = -30;
-        pwm_R = 30;
+        pwm_L = -10;
+        pwm_R = 10;
     }
     if (bt_cmd == 'd') {
-        pwm_L = 30;
-        pwm_R = -30;
+        pwm_L = 10;
+        pwm_R = -10;
     }
     if (bt_cmd == 'w') {
         pwm_L = 30;
@@ -234,18 +241,95 @@ void controller_task(intptr_t unused)
         pwm_L = 100;
         pwm_R = 100;
     }
+    if (bt_cmd == 'A') {
+        pwm_L = -30;
+        pwm_R = 30;
+    }
+    if (bt_cmd == 'D') {
+        pwm_L = 30;
+        pwm_R = -30;
+    }
+    if (bt_cmd == 'W') {
+        pwm_L = 100;
+        pwm_R = 100;
+    }
+    if (bt_cmd == 'S') {
+        pwm_L = -100;
+        pwm_R = -100;
+    }
+    if (bt_cmd == 'm') {
+        armMotor_initialize();
+        bt_cmd = 'l';   // ダミー
+    }
+    if (bt_cmd == 'n') {
+        armMotor_grab();
+        bt_cmd = 'l';
+    }
+    if (bt_cmd == 'b') {
+        controlAngle(90);
+        bt_cmd = 'l';
+    }
+    if (bt_cmd == 'c') {
+        ev3_speaker_play_tone(200.00, 40);
+        bt_cmd = 'l';   // ダミー
+    }
+    if (bt_cmd == ' ') {
+        pwm_L = 0;
+        pwm_R = 0;
+        pwm_A = 0;
+    }
+    if (bt_cmd == 4) {
+        if (disEnabled == 0) {
+            disEnabled = 1;
+            ev3_speaker_play_tone(200.00, 40);
+        }
+        else {
+            disEnabled = 0;
+            ev3_speaker_play_tone(200.00, 40);
+        }
+        syslog(LOG_NOTICE, "disEnabled : %d", disEnabled);
+        bt_cmd = 'l';   // ダミー
+    }
     if (bt_cmd == 5) {
         pwm_A = 70;
+        // setAngle(10);
         pwm_L = 0;
         pwm_R = 0;
     }
     if (bt_cmd == 6) {
         pwm_A = -70;
+        // setAngle(0);
         pwm_L = 0;
         pwm_R = 0;
     }
+    if (bt_cmd == 9) {
+        pwm_L = 100;
+        pwm_R = -100;
+    }
     if (sonar_alert() == 1){ /* 障害物検知 */
         pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
+    }
+    if (bt_cmd == 3) {
+        leftMotor->reset();
+        rightMotor->reset();
+        motor_ang_l = 0;
+        motor_ang_r = 0;
+    }
+
+    // 0cm以下はストップ
+    if (disEnabled && 0 > distance_now) {
+        pwm_R = 0;
+        pwm_L = 0;
+        rightMotor->reset();
+        leftMotor->reset();
+    }
+    // 55cmを超えたらストップ
+    if (disEnabled && distance_now >= 600 && (pwm_R > 0 || pwm_L > 0)) {
+        rightMotor->setPWM(0);
+        leftMotor->setPWM(0);
+        // pwm_R = 0;
+        // pwm_L = 0;
+        // armMotor_grab();
     }
 
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
@@ -268,11 +352,15 @@ void controller_task(intptr_t unused)
         rightMotor->setPWM(pwm_R);
     }
 
-
-
     /* ログを送信する処理 */
-    syslog(LOG_NOTICE, "pid:%5d R%3d G:%3d B:%3d total:%3d\r", pid, rgb_level.r, rgb_level.g, rgb_level.b,
-                                                                                rgb_total);
+    //syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
+
+    //int16_t gyroAngle = gyroSensor->getAngle();
+    // syslog(LOG_NOTICE, "gyro: %d", gyroAngle);
+
+    thisAngle = controlAngle();
+    int sonarDistance = sonarSensor->getDistance();
+    syslog(LOG_NOTICE, "sonarDistance: %d, distance_now: %d, thisAngle: %d, gyro: %d\r", sonarDistance, distance_now, thisAngle, gyroSensor->getAnglerVelocity());
 
     BTconState();
 
@@ -338,6 +426,9 @@ void bt_task(intptr_t unused)
     while(1) {
         uint8_t c = fgetc(bt); /* 受信 */
         switch(c) {
+        case '3':
+            bt_cmd = 3;
+            break;
         case '1':
             bt_cmd = 1;
             break;
@@ -359,11 +450,44 @@ void bt_task(intptr_t unused)
         case 'e':
             bt_cmd = 'e';
             break;
+        case 'W':
+            bt_cmd = 'W';
+            break;
+        case 'A':
+            bt_cmd = 'A';
+            break;
+        case 'S':
+            bt_cmd = 'S';
+            break;
+        case 'D':
+            bt_cmd = 'D';
+            break;
+        case '4':
+            bt_cmd = 4;
+            break;
         case '5':
             bt_cmd = 5;
             break;
         case '6':
             bt_cmd = 6;
+            break;
+        case '9':
+            bt_cmd = 9;
+            break;
+        case 'm':
+            bt_cmd = 'm';
+            break;
+        case 'n':
+            bt_cmd = 'n';
+            break;
+        case 'b':
+            bt_cmd = 'b';
+            break;
+        case ' ':
+            bt_cmd = ' ';
+            break;
+        case 'c':
+            bt_cmd = 'c';
             break;
         default:
             break;
@@ -385,4 +509,129 @@ static void BTconState() {
     else {
         ev3_lcd_draw_string("BT connection : false", 0, CALIB_FONT_HEIGHT*3);
     }
+}
+
+//*****************************************************************************
+// 関数名 : m_motor_initializes
+// 引数 : unused
+// 返り値 : なし
+// 概要 : はさみを最大に開いて初期化する
+//*****************************************************************************
+// void m_motor_initialize(void) {
+//     int32_t angle = ev3_motor_get_counts(m_motor);
+//     int32_t last_angle = angle - 999;
+//
+//     syslog(LOG_NOTICE, "はさみ初期化前 angle: %d, last_angle: %d, if: %d\r", angle, last_angle, angle - last_angle);
+//     while (angle - last_angle > 10) {
+//         ev3_motor_rotate(m_motor, 50, 100, false);
+//         last_angle = angle;
+//
+//         tslp_tsk(300);
+//         angle = ev3_motor_get_counts(m_motor);
+//         syslog(LOG_NOTICE, "はさみ初期化中 angle: %d, last_angle: %d, if: %d\r", angle, last_angle, angle - last_angle);
+//     }
+//     syslog(LOG_NOTICE, "はさみ初期化終了 angle: %d, last_angle: %d, if: %d\r", angle, last_angle, angle - last_angle);
+//     ev3_motor_reset_counts(m_motor);
+// }
+
+//*****************************************************************************
+// 関数名 : m_motor_initializes
+// 引数 : unused
+// 返り値 : なし
+// 概要 : はさみを最大に開いて初期化する
+//*****************************************************************************
+void armMotor_initialize(void) {
+    int32_t nowAngle = armMotor->getCount();
+    int32_t lastAngle = nowAngle - 999;
+    int32_t currentAngle = 0;
+    armMotor->setPWM(30);
+    tslp_tsk(300);
+
+    while (nowAngle - lastAngle >= 65) {
+        // armMotor->setCount(50);
+        armMotor->setPWM(20);
+        lastAngle = nowAngle;
+
+        tslp_tsk(300);
+        nowAngle = armMotor->getCount();
+        syslog(LOG_NOTICE, "armMotor初期化中 now: %d, last: %d, 差: %d\r", nowAngle, lastAngle, nowAngle - lastAngle);
+    }
+    syslog(LOG_NOTICE, "初期化完了\r");
+    armMotor->stop();
+    armMotor->reset();
+}
+
+void setAngle(int32_t angle) {
+    armMotor->setCount(angle);
+}
+
+void armMotor_grab(void) {
+    int32_t nowAngle = armMotor->getCount();
+    int32_t lastAngle = nowAngle + 999;
+    int32_t currentAngle = 0;
+    armMotor->setPWM(-30);
+    tslp_tsk(300);
+
+    while (nowAngle - lastAngle <= -60) {
+        armMotor->setPWM(-20);
+        lastAngle = nowAngle;
+
+        tslp_tsk(300);
+        nowAngle = armMotor->getCount();
+        syslog(LOG_NOTICE, "armMotorOPEN now: %d, last: %d, 差: %d\r", nowAngle, lastAngle, nowAngle - lastAngle);
+    }
+    syslog(LOG_NOTICE, "armMotorOPEN finished!\r");
+    armMotor->stop();
+    armMotor->reset();
+
+
+
+    // armMotor->setCount(-660);
+    // ev3_speaker_play_tone(200.00, 40);
+    // clock->sleep(1000);
+    //
+    // int32_t nowAngle = armMotor->getCount();
+    // int32_t lastAngle = nowAngle + 999;
+    // int32_t currentAngle = 0;
+    // armMotor->setPWM(-30);
+    // tslp_tsk(300);
+    //
+    // while (nowAngle - lastAngle <= -65) {
+    //     // armMotor->setCount(50);
+    //     armMotor->setPWM(-20);
+    //     lastAngle = nowAngle;
+    //
+    //     tslp_tsk(300);
+    //     nowAngle = armMotor->getCount();
+    //     syslog(LOG_NOTICE, "armMotorGrab now: %d, last: %d, 差: %d\r", nowAngle, lastAngle, nowAngle - lastAngle);
+    // }
+    // syslog(LOG_NOTICE, "完了\r");
+    // armMotor->stop();
+    // armMotor->reset();
+}
+
+int16_t controlAngle(void) {
+    // thisAngle = ev3_gyro_sensor_get_angle(EV3_PORT_3);
+    // thisAngle = gyroSensor->getAngle();
+    thisAngle += gyroSensor->getAnglerVelocity();
+
+    // thisAngle = 0;
+    // thisAngle /= 25;
+    return thisAngle;
+}
+
+void controlAngle(int32_t angle) {
+    int32_t nowAngle = controlAngle();
+    while (angle - 10 < nowAngle && nowAngle < angle + 10) {
+
+        if (angle > 0) {
+            rightMotor->setPWM(-10);
+            leftMotor->setPWM(10);
+        }
+        else {
+            rightMotor->setPWM(10);
+            leftMotor->setPWM(-10);
+        }
+    }
+    syslog(LOG_NOTICE, "controlAngle Finished!\r");
 }
