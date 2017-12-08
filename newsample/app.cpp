@@ -181,7 +181,9 @@ void controller_task(intptr_t unused)
     volt = ev3_battery_voltage_mV();
 
     /* 現在の走行距離を取得 */
-    distance_now = distance_way.distanceAll(motor_ang_l, motor_ang_r);
+    distance_way.Distance_update(motor_ang_l, motor_ang_r);
+    distance_now = distance_way.Distance_getDistance();
+
 
     /* 色の取得 */
     rgb_before = rgb_total; //LPF用前処理
