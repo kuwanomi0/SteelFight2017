@@ -5,12 +5,9 @@
  ** 概要 : 2輪倒立振子ライントレースロボットのTOPPERS/HRP2用C++サンプルプログラム
  **
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
- * @version task_1.0 : 2017.06.28
- *    +ディレクトリ名をtouchguy に変更する
- *    +コントロールタスク追加し周期ハンドラで動かす
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.4"
+#define VERSION "kuwanomi0_0.5"
 
 #include "ev3api.h"
 #include "app.h"
@@ -51,16 +48,12 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define KLP                 0.6  /* LPF用係数*/
 #define COLOR                160
 
-/* 超音波センサーに関するマクロ */
-#define SONAR_ALERT_DISTANCE 30  /* 超音波センサによる障害物検知距離[cm] */
-
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
 #define CALIB_FONT_WIDTH (6/* magic number*/)
 #define CALIB_FONT_HEIGHT (8/* magic number*/)
 
 /* 関数プロトタイプ宣言 */
-static int32_t sonar_alert(void);
 static void BTconState();
 
 /* オブジェクトへのポインタ定義 */
@@ -83,6 +76,8 @@ static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
+static int8_t flag = 0;
+static int8_t bSonerDis = 0;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -114,6 +109,7 @@ void main_task(intptr_t unused)
     /* スタート待機 */
     while(1) {
         if (bt_cmd == 1 || ev3_button_is_pressed(ENTER_BUTTON)) {
+            bt_cmd = 1;
             break;
         }
         BTconState();
@@ -183,6 +179,49 @@ void controller_task(intptr_t unused)
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
+    // sonarSensor->getDistance();
+
+
+    if (distance_way.Distance_getDistance() <= 1200 && flag == 0) {
+        pwm_L = 54;
+        pwm_R = 60;
+    }
+    else if (sonarSensor->getDistance() >= 40 && flag == 0) {
+        pwm_R = 10;
+        pwm_L = -10;
+    }
+    else if (flag == 0) {
+        bSonerDis = sonarSensor->getDistance();
+        // bool flagDaze;
+        int8_t nowDis;
+        while (sonarSensor->getDistance() >= 3 && sonarSensor->getDistance() <= 250) {
+            nowDis = bSonerDis - sonarSensor->getDistance();
+
+            if (nowDis > 0) {
+                pwm_R = 15;
+                pwm_L = 9;
+            }
+            else if (nowDis < 0) {
+                pwm_R = 10;
+                pwm_L = 13;
+            }
+            else {
+                pwm_L = pwm_R = 8;
+            }
+
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+
+            bSonerDis = sonarSensor->getDistance();
+        }
+        flag = 1;
+    }
+
+    if (flag == 1) {
+        pwm_L = pwm_R = 3;
+        pwm_A = -10;
+    }
+
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
     if (pwm_A == 0) {
@@ -206,8 +245,6 @@ void controller_task(intptr_t unused)
         rightMotor->setPWM(pwm_R);
     }
 
-
-
     /* ログを送信する処理 */
     // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
     // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distance_way.Distance_getDistance());
@@ -228,41 +265,6 @@ void cyc_handler(intptr_t unused)
 {
     // コントローラタスクを起動する
     act_tsk(CONTROLLER_TASK);
-}
-
-//*****************************************************************************
-// 関数名 : sonar_alert
-// 引数 : 無し
-// 返り値 : 1(障害物あり)/0(障害物無し)
-// 概要 : 超音波センサによる障害物検知
-//*****************************************************************************
-static int32_t sonar_alert(void)
-{
-    static uint32_t counter = 0;
-    int32_t alert = 0;
-
-    int32_t distance;
-
-    if (++counter == 4/4) /* 約40msec周期毎に障害物検知  */
-    {
-        /*
-         * 超音波センサによる距離測定周期は、超音波の減衰特性に依存します。
-         * NXTの場合は、40msec周期程度が経験上の最短測定周期です。
-         * EV3の場合は、要確認
-         */
-        distance = sonarSensor->getDistance();
-        if ((distance <= SONAR_ALERT_DISTANCE) && (distance >= 0))
-        {
-            alert = 1; /* 障害物を検知 */
-        }
-        else
-        {
-            alert = 0; /* 障害物無し */
-        }
-        counter = 0;
-    }
-
-    return alert;
 }
 
 //*****************************************************************************
