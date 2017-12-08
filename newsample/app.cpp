@@ -48,7 +48,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_BLACK            80  /* 黒色のRGBセンサの合計 */
 #define RGB_TARGET          436  /*90 570 875*/ /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
-#define FORWARD             20
+#define FORWARD             10
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 2  /* 超_音波センサによる障害物検知距離[cm] */
@@ -126,6 +126,7 @@ void main_task(intptr_t unused)
     /* スタート待機 */
     while(1) {
         if (bt_cmd == 1 || ev3_button_is_pressed(ENTER_BUTTON)) {
+            armMotor_initialize();
             break;
         }
 
@@ -221,6 +222,7 @@ void controller_task(intptr_t unused)
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
     pid = pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - rgb_total);
+
     if (pid < 0) {
         //黒の時
         pid_L = -pid;
@@ -240,8 +242,20 @@ void controller_task(intptr_t unused)
         pwm_R = 10;
     }*/
 
+    pwm_L = 20;
+    pwm_R = 20;
     //pwm_L = 0;
     //pwm_R = 0;
+    if (sonarSensor->getDistance() <= 6) {
+        armMotor_grab();
+        clock->reset();
+        rightMotor->setPWM(5);
+        leftMotor->setPWM(0);
+        while (clock->now() < 5*1000) {
+            // 遅延
+        }
+    }
+
 
     // ショボいラジコン操作
     if (bt_cmd == 'a') {
@@ -396,20 +410,17 @@ void controller_task(intptr_t unused)
 // 返り値 : なし
 // 概要   : 周期ハンドラ(4ms)
 //*****************************************************************************
-void cyc_handler(intptr_t unused)
-{
+void cyc_handler(intptr_t unused) {
     // コントローラタスクを起動する
     act_tsk(CONTROLLER_TASK);
 }
-
 //*****************************************************************************
 // 関数名 : sonar_alert
 // 引数 : 無し
 // 返り値 : 1(障害物あり)/0(障害物無し)
 // 概要 : 超音波センサによる障害物検知
 //*****************************************************************************
-static int32_t sonar_alert(void)
-{
+static int32_t sonar_alert(void){
     static uint32_t counter = 0;
     int32_t alert = 0;
 
@@ -436,7 +447,6 @@ static int32_t sonar_alert(void)
 
     return alert;
 }
-
 //*****************************************************************************
 // 関数名 : bt_task
 // 引数 : unused
@@ -444,8 +454,7 @@ static int32_t sonar_alert(void)
 // 概要 : Bluetooth通信によるリモートスタート。 Tera Termなどのターミナルソフトから、
 //       ASCIIコードで1を送信すると、リモートスタートする。
 //*****************************************************************************
-void bt_task(intptr_t unused)
-{
+void bt_task(intptr_t unused){
     while(1) {
         uint8_t c = fgetc(bt); /* 受信 */
         switch(c) {
@@ -518,7 +527,6 @@ void bt_task(intptr_t unused)
         fputc(c, bt); /* エコーバック */
     }
 }
-
 //*****************************************************************************
 // 関数名 : BTconState
 // 引数 : なし
@@ -533,7 +541,6 @@ static void BTconState() {
         ev3_lcd_draw_string("BT connection : false", 0, CALIB_FONT_HEIGHT*3);
     }
 }
-
 //*****************************************************************************
 // 関数名 : m_motor_initializes
 // 引数 : unused
@@ -556,7 +563,6 @@ static void BTconState() {
 //     syslog(LOG_NOTICE, "はさみ初期化終了 angle: %d, last_angle: %d, if: %d\r", angle, last_angle, angle - last_angle);
 //     ev3_motor_reset_counts(m_motor);
 // }
-
 //*****************************************************************************
 // 関数名 : m_motor_initializes
 // 引数 : unused
@@ -583,11 +589,15 @@ void armMotor_initialize(void) {
     armMotor->stop();
     armMotor->reset();
 }
-
 void setAngle(int32_t angle) {
     armMotor->setCount(angle);
 }
-
+//*****************************************************************************
+// 関数名 : armMotor_grab
+// 引数 : unused
+// 返り値 : なし
+// 概要 : はさみを閉じて初期化する
+//*****************************************************************************
 void armMotor_grab(void) {
     int32_t nowAngle = armMotor->getCount();
     int32_t lastAngle = nowAngle + 999;
@@ -632,7 +642,6 @@ void armMotor_grab(void) {
     // armMotor->stop();
     // armMotor->reset();
 }
-
 int16_t controlAngle(void) {
     // thisAngle = ev3_gyro_sensor_get_angle(EV3_PORT_3);
     // thisAngle = gyroSensor->getAngle();
@@ -642,7 +651,6 @@ int16_t controlAngle(void) {
     // thisAngle /= 25;
     return thisAngle;
 }
-
 void controlAngle(int32_t angle) {
     int32_t nowAngle = controlAngle();
     while (angle - 10 < nowAngle && nowAngle < angle + 10) {
@@ -658,3 +666,9 @@ void controlAngle(int32_t angle) {
     }
     syslog(LOG_NOTICE, "controlAngle Finished!\r");
 }
+//*****************************************************************************
+// 関数名 : rajikon
+// 引数 : unused
+// 返り値 : なし
+// 概要 : しょぼいラジコン操作関数
+//*****************************************************************************
