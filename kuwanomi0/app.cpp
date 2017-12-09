@@ -7,7 +7,7 @@
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.5"
+#define VERSION "kuwanomi0_0.6"
 
 #include "ev3api.h"
 #include "app.h"
@@ -42,11 +42,9 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
-#define RGB_WHITE           160  /* 白色のRGBセンサの合計 */
-#define RGB_BLACK            10  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          325  /*240 115*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          631  /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
-#define COLOR                160
+#define COLOR               160
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -67,7 +65,7 @@ Clock*          clock;
 
 /* インスタンスの生成 */
 Distance distance_way;
-PID pid_walk(      0,       0,       0); /* 走行用のPIDインスタンス */
+PID pid_walk(0.1400F, 0.0000F, 2.2000F); /* 走行用のPIDインスタンス */
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
@@ -306,10 +304,11 @@ void controller_task(intptr_t unused)
         flag = 50;
     }
 
-    // if (flag == 5) {
-    //     pwm_L = 40 +
-    //     pwm_R = 40 +
-    // }
+    if (flag == 5) {
+        int pid = pid_walk.calcControl(RGB_TARGET - rgb_total);
+        pwm_L = 55 + pid;
+        pwm_R = 55 - pid;
+    }
     // ステップ４ 方向転換
     // if (flag == 4) {
     //     clock->reset();
