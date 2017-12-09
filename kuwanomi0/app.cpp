@@ -62,10 +62,8 @@ Motor*          armMotor;
 Motor*          leftMotor;
 Motor*          rightMotor;
 Clock*          clock;
-
-/* インスタンスの生成 */
-Distance distance_way;
-PID pid_walk(0.1400F, 0.0000F, 2.2000F); /* 走行用のPIDインスタンス */
+Distance*       distanceWay;
+PID*            pidWalk; /* 走行用のPIDインスタンス */
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
@@ -88,6 +86,9 @@ void main_task(intptr_t unused)
     leftMotor   = new Motor(PORT_B);
     rightMotor  = new Motor(PORT_C);
     clock       = new Clock();
+    distanceWay = new Distance();
+    pidWalk     = new PID(0.1400F, 0.0000F, 2.2000F);
+
 
     /* LCD画面表示 */
     char buf[64];
@@ -179,7 +180,7 @@ void controller_task(intptr_t unused)
     volt = ev3_battery_voltage_mV();
 
     /* 現在の走行距離を取得 */
-    distance_way.Distance_update(motor_ang_L, motor_ang_R);
+    distanceWay->Distance_update(motor_ang_L, motor_ang_R);
 
     /* 色の取得 */
     rgb_before = rgb_total; //LPF用前処理
@@ -189,7 +190,7 @@ void controller_task(intptr_t unused)
     // sonarSensor->getDistance();
 
     // ステップ0 スタートからつかむ前まで
-    if (distance_way.Distance_getDistance() <= 1670 && flag == 0) {
+    if (distanceWay->Distance_getDistance() <= 1670 && flag == 0) {
         pwm_L = 51;
         pwm_R = 60;
     }
@@ -305,7 +306,7 @@ void controller_task(intptr_t unused)
     }
 
     if (flag == 5) {
-        int pid = pid_walk.calcControl(RGB_TARGET - rgb_total);
+        int pid = pidWalk->calcControl(RGB_TARGET - rgb_total);
         pwm_L = 55 + pid;
         pwm_R = 55 - pid;
     }
@@ -353,8 +354,8 @@ void controller_task(intptr_t unused)
 
     /* ログを送信する処理 */
     // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distance_way.Distance_getDistance());
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distance_way.Distance_getDistance(),(int)distance_way.Distance_getDistance4msL(),(int)distance_way.Distance_getDistance4msR());
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distanceWay.Distance_getDistance());
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distanceWay.Distance_getDistance(),(int)distanceWay.Distance_getDistance4msL(),(int)distanceWay.Distance_getDistance4msR());
 
     BTconState();
 
