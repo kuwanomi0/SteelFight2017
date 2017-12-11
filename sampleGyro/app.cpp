@@ -63,7 +63,8 @@ Motor*          leftMotor;
 Motor*          rightMotor;
 Clock*          clock;
 Distance*       distanceWay;
-PID*            pidWalk; /* 走行用のPIDインスタンス */
+PID*            colorPID; /* 走行用のPIDインスタンス */
+PID*            gyroPID;
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
@@ -87,7 +88,8 @@ void main_task(intptr_t unused)
     rightMotor  = new Motor(PORT_C);
     clock       = new Clock();
     distanceWay = new Distance();
-    pidWalk     = new PID(0.1400F, 0.0000F, 2.2000F);
+    colorPID    = new PID(RGB_TARGET, 0.1400F, 0.0000F, 2.2000F);
+    gyroPID     = new PID(0, 0.0F, 0.0F, 0.0F);
 
 
     /* LCD画面表示 */
@@ -306,7 +308,7 @@ void controller_task(intptr_t unused)
     }
 
     if (flag == 5) {
-        int pid = pidWalk->calcControl(RGB_TARGET - rgb_total);
+        int pid = colorPID->calcControl(RGB_TARGET - rgb_total);
         pwm_L = 55 + pid;
         pwm_R = 55 - pid;
     }
