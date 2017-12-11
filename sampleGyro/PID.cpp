@@ -16,7 +16,7 @@ int PID::calcControl(int now_value) {
     float p_control, i_control, d_control, total;
 
     diff[0]   = diff[1];
-    diff[1]   = target;
+    diff[1]   = value;
     if (diff[0] == diff[1]){
         integral = 0.0F;
     }

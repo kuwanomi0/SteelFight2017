@@ -74,7 +74,6 @@ static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
 static int8_t flag = 0;
-static int8_t step = 1;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -162,7 +161,7 @@ void main_task(intptr_t unused)
 void controller_task(intptr_t unused)
 {
     int32_t motor_ang_L, motor_ang_R;
-    int32_t gyro, volt;
+    int32_t gyro;
 
     pwm_A = 0;
     pwm_L = 0;
@@ -178,158 +177,18 @@ void controller_task(intptr_t unused)
     /* パラメータを取得する */
     motor_ang_L = leftMotor->getCount();
     motor_ang_R = rightMotor->getCount();
-    gyro = gyroSensor->getAnglerVelocity();
-    volt = ev3_battery_voltage_mV();
+    gyro = gyroSensor->getAngle();
 
     /* 現在の走行距離を取得 */
-    distanceWay->Distance_update(motor_ang_L, motor_ang_R);
+    distanceWay->update(motor_ang_L, motor_ang_R);
 
     /* 色の取得 */
     rgb_before = rgb_total; //LPF用前処理
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
-    // sonarSensor->getDistance();
-
-    // ステップ0 スタートからつかむ前まで
-    if (distanceWay->Distance_getDistance() <= 1670 && flag == 0) {
-        pwm_L = 51;
-        pwm_R = 60;
-    }
-    else if (sonarSensor->getDistance() >= 40 && flag == 0) {
-        pwm_R = 7;
-        pwm_L = -7;
-    }
-    else if (flag == 0) {
-        int8_t bSonerDis = sonarSensor->getDistance();
-        int8_t nowDis;
-        int8_t flagDAZE = 0;
-        while (sonarSensor->getDistance() >= 6 /*&& flagDAZE <= 10*/) {
-            nowDis = bSonerDis - sonarSensor->getDistance();
-
-            // if(sonarSensor->getDistance() >= 250) {
-            //     flagDAZE++;
-            // }
-
-            if (nowDis > 0) {
-                pwm_R = 16;
-                pwm_L = 9;
-            }
-            else if (nowDis < 0) {
-                pwm_R = 10;
-                pwm_L = 12;
-            }
-            else {
-                pwm_L = 10;
-                pwm_R = 11;
-            }
-
-            leftMotor->setPWM(pwm_L);
-            rightMotor->setPWM(pwm_R);
-
-            bSonerDis = sonarSensor->getDistance();
-        }
-        flag = 1;
-    }
-
-    // ステップ１ ペットボトルをつかむ
-    if (flag == 1) {
-        clock->reset();
-        clock->sleep(1);
-        while (clock->now() <= 2500) {
-            leftMotor->setPWM(10);
-            rightMotor->setPWM(10);
-            armMotor->setPWM(-37);
-        }
-        flag = 2;
-    }
 
 
-    // ステップ２ 赤いところまでバック
-    if (flag == 2) {
-        if (rgb_total >= 400) {
-            pwm_L = -60;
-            pwm_R = -59;
-        }
-        else {
-            flag = 3;
-        }
-    }
-
-    // ステップ３ ペットボトルを話す
-    if (flag == 3) {
-        clock->reset();
-        clock->sleep(1);
-        while (clock->now() <= 300) {
-            leftMotor->setPWM(-60);
-            rightMotor->setPWM(-60);
-            armMotor->setPWM(0);
-        }
-        clock->reset();
-        clock->sleep(1);
-        while (clock->now() <= 1000) {
-            leftMotor->setPWM(0);
-            rightMotor->setPWM(0);
-            armMotor->setPWM(60);
-        }
-        clock->reset();
-        clock->sleep(1);
-        while (clock->now() <= 700) {
-            leftMotor->setPWM(-60);
-            rightMotor->setPWM(-60);
-            armMotor->setPWM(30);
-        }
-        flag = 4;
-    }
-
-    if (flag == 4) {
-        while (rgb_total <= 400) {
-            /* 色の取得 */
-            rgb_before = rgb_total; //LPF用前処理
-            colorSensor->getRawColor(rgb_level); /* RGB取得 */
-            rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
-            leftMotor->setPWM(-60);
-            rightMotor->setPWM(-60);
-            armMotor->stop();
-        }
-        clock->reset();
-        clock->sleep(1);
-        while (clock->now() <= 250) {
-            leftMotor->setPWM(40);
-            rightMotor->setPWM(-50);
-        }
-
-                    /* 色の取得 */
-        rgb_before = rgb_total; //LPF用前処理
-        colorSensor->getRawColor(rgb_level); /* RGB取得 */
-        rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
-
-        flag = 50;
-    }
-
-    if (flag == 5) {
-        int pid = colorPID->calcControl(RGB_TARGET - rgb_total);
-        pwm_L = 55 + pid;
-        pwm_R = 55 - pid;
-    }
-    // ステップ４ 方向転換
-    // if (flag == 4) {
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 450) {
-    //         leftMotor->setPWM(60);
-    //         rightMotor->setPWM(0);
-    //         armMotor->setPWM(60);
-    //     }
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 2800) {
-    //         leftMotor->setPWM(60);
-    //         rightMotor->setPWM(60);
-    //         armMotor->setPWM(0);
-    //     }
-    //     flag = 0;
-    // }
 
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
@@ -356,8 +215,8 @@ void controller_task(intptr_t unused)
 
     /* ログを送信する処理 */
     // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distanceWay.Distance_getDistance());
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distanceWay.Distance_getDistance(),(int)distanceWay.Distance_getDistance4msL(),(int)distanceWay.Distance_getDistance4msR());
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distanceWay.getDistance());
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distanceWay.getDistance(),(int)distanceWay.getDistance4msL(),(int)distanceWay.getDistance4msR());
 
     BTconState();
 
