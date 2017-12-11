@@ -74,6 +74,7 @@ static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
 static int8_t flag = 0;
+static int gyroTarget = 90;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -168,7 +169,7 @@ void controller_task(intptr_t unused)
     pwm_R = 0;
 
     /* バックボタン */
-    if (ev3_button_is_pressed(BACK_BUTTON) || bt_cmd == 0 || flag == 50) {
+    if (ev3_button_is_pressed(BACK_BUTTON) || bt_cmd == 0) {
         ev3_led_set_color(LED_RED);
         wup_tsk(MAIN_TASK);        //メインタスクを起床する
         ev3_stp_cyc(CYC_HANDLER);  //周期ハンドラを停止する
@@ -187,7 +188,22 @@ void controller_task(intptr_t unused)
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
-
+    if (distanceWay->getDistance() <= 200 && flag == 0) {
+        pwm_L = pwm_R = 50;
+    }
+    else {
+        flag = 1;
+        if (gyro <= gyroTarget) {
+            pwm_L = 30;
+            pwm_R = -30;
+        }
+        else {
+            flag = 0;
+            gyroTarget += 90;
+            leftMotor->reset();
+            rightMotor->reset();
+        }
+    }
 
 
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
@@ -215,8 +231,8 @@ void controller_task(intptr_t unused)
 
     /* ログを送信する処理 */
     // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d\r", volt, gyro, (int)distanceWay.getDistance());
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distanceWay.getDistance(),(int)distanceWay.getDistance4msL(),(int)distanceWay.getDistance4msR());
+    syslog(LOG_NOTICE, "G:%3d  DIS:%5d\r", gyro, (int)distanceWay->getDistance());
+    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distanceWay->getDistance(),(int)distanceWay->getDistance4msL(),(int)distanceWay->getDistance4msR());
 
     BTconState();
 
