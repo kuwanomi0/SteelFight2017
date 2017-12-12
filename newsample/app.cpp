@@ -48,7 +48,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_BLACK            80  /* 黒色のRGBセンサの合計 */
 #define RGB_TARGET          436  /*90 570 875*/ /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
-#define FORWARD             10
+#define FORWARD             15
 
 /* 超音波センサーに関するマクロ */
 #define SONAR_ALERT_DISTANCE 2  /* 超_音波センサによる障害物検知距離[cm] */
@@ -79,7 +79,7 @@ Clock*          clock;
 /* インスタンスの生成 */
 Distance distance_way;
 PID pid_walk( 0.04F, 0.0F,   0.0F); /* 走行用のPIDインスタンス */
-////////////
+////////////0.04
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
@@ -89,6 +89,8 @@ static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
+static int8_t ishave = 0;
+static int8_t sonartemp = 0;
 //static int8_t forward;
 
 static int32_t disEnabled = 0;  // 距離で動作（0 : 無効, 1 : 有効）
@@ -126,6 +128,8 @@ void main_task(intptr_t unused)
     /* スタート待機 */
     while(1) {
         if (bt_cmd == 1 || ev3_button_is_pressed(ENTER_BUTTON)) {
+            bt_cmd = 1;
+            clock->reset();
             armMotor_initialize();
             break;
         }
@@ -246,16 +250,71 @@ void controller_task(intptr_t unused)
     pwm_R = 20;
     //pwm_L = 0;
     //pwm_R = 0;
-    if (sonarSensor->getDistance() <= 6) {
-        armMotor_grab();
-        clock->reset();
-        rightMotor->setPWM(5);
-        leftMotor->setPWM(0);
-        while (clock->now() < 5*1000) {
-            // 遅延
+    //ペットボトル見つけたらいい感じに修正する。
+    if(sonarSensor->getDistance() <= 25 && ishave == 0) {
+        int8_t RUDDER_RIGHT = 1;
+        int8_t RUDDER_LEFT = -1;
+        int8_t rudder = RUDDER_RIGHT;
+        int8_t sonar_min = 255;
+        sonartemp = sonarSensor->getDistance();
+        leftMotor->setPWM(5);//右に曲がる
+        rightMotor->setPWM(1);
+        tslp_tsk(500);
+        while (sonartemp >= 10) { //ペットボトルに近づくまで
+            if (sonar_min + 2 <= sonartemp) {
+                if (rudder == RUDDER_RIGHT) {
+                    leftMotor->setPWM(5);//左に曲がる
+                    rightMotor->setPWM(15);
+                    rudder = RUDDER_LEFT;
+                    ev3_led_set_color(LED_RED);
+                }
+                else {
+                    leftMotor->setPWM(15);//右に曲がる
+                    rightMotor->setPWM(5);
+                    rudder = RUDDER_RIGHT;
+                    ev3_led_set_color(LED_ORANGE);
+                }
+            }
+            else {
+                ev3_led_set_color(LED_GREEN);
+                leftMotor->setPWM(20);//直進
+                rightMotor->setPWM(20);
+            }
+
+            if (sonar_min > sonartemp) {//最短距離更新
+                sonar_min = sonartemp;
+            }
+
+            sonartemp = sonarSensor->getDistance(); //値更新
         }
+        leftMotor->setPWM(40);//直進
+        rightMotor->setPWM(40);
+        ishave = 1;
+        tslp_tsk(500);
+        leftMotor->setPWM(0);
+        rightMotor->setPWM(0);
+        armMotor_grab();
+        tslp_tsk(1000);
+
     }
 
+    // if(sonarSensor->getDistance() <= 20) {
+    //     sonartemp = sonarSensor->getDistance();
+    //     leftMotor->setPWM(5);
+    //     rightMotor->setPWM(1);
+    //     tslp_tsk(500);
+    //     while (sonarSensor->getDistance() >= 7) { //ペットボトルに近づくまで
+    //         while (sonarSensor->getDistance() <= sonartemp) {
+    //             leftMotor->setPWM(10);//右に曲がる
+    //             rightMotor->setPWM(2);
+    //         }
+    //         while (sonarSensor->getDistance() >= sonartemp) {
+    //             leftMotor->setPWM(2);//左に曲がる
+    //             rightMotor->setPWM(10);
+    //         }
+    //     }
+    //     armMotor_grab();
+    // }
 
     // ショボいラジコン操作
     if (bt_cmd == 'a') {
@@ -397,7 +456,7 @@ void controller_task(intptr_t unused)
 
     thisAngle = controlAngle();
     int sonarDistance = sonarSensor->getDistance();
-    syslog(LOG_NOTICE, "sonarDistance: %d, distance_now: %d, thisAngle: %d, gyro: %d\r", sonarDistance, distance_now, thisAngle, gyroSensor->getAnglerVelocity());
+    syslog(LOG_NOTICE, "sonarDistance: %d, distance_now: %d, rgb_total: %d, gyro: %d\r", sonarDistance, distance_now, rgb_total, gyroSensor->getAnglerVelocity());
 
     BTconState();
 
