@@ -74,7 +74,7 @@ static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
 static int8_t flag = 0;
-static int32_t gyroTarget = 90;
+static int32_t gyroTarget = 0;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -89,7 +89,7 @@ void main_task(intptr_t unused)
     clock       = new Clock();
     distanceWay = new Distance();
     colorPID    = new PID(RGB_TARGET, 0.1400F, 0.0000F, 2.2000F);
-    gyroPID     = new PID(0, 0.0F, 0.0F, 0.0F);
+    gyroPID     = new PID(0, 1.0F, 0.0F, 0.0F);
 
 
     /* LCD画面表示 */
@@ -188,25 +188,25 @@ void controller_task(intptr_t unused)
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
+    gyroPID->setTaget(gyroTarget);
 
+    int pid = gyroPID->calcControl(gyro);
+    pwm_L = 30 + pid;
+    pwm_R = 30 - pid;
 
-    if (clock->now() <= 1500 && flag == 0) {
-        pwm_L = pwm_R = 50;
-    }
-    else {
-        flag = 1;
-        if (gyro <= gyroTarget - 1) {
-            pwm_L = 30;
-            pwm_R = -30;
-        }
-        else {
-            flag = 0;
-            gyroTarget += 90;
-            clock->reset();
-            clock->sleep(10);
-        }
+    // int pid = -gyroPID->calcControl(gyro);
+    // pwm_L = -30 - pid;
+    // pwm_R = -30 + pid;
+
+    if (bt_cmd == 5) {
+        gyroTarget += -10;
+        bt_cmd = 1;
     }
 
+    if (bt_cmd == 6) {
+        gyroTarget += 10;
+        bt_cmd = 1;
+    }
 
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
@@ -270,6 +270,12 @@ void bt_task(intptr_t unused)
             break;
         case '0':
             bt_cmd = 0;
+            break;
+        case '5':
+            bt_cmd = 5;
+            break;
+        case '6':
+            bt_cmd = 6;
             break;
         default:
             break;
