@@ -252,41 +252,29 @@ void controller_task(intptr_t unused)
     //pwm_R = 0;
     //ペットボトル見つけたらいい感じに修正する。
     if(sonarSensor->getDistance() <= 45 && ishave == 0) {
-        int8_t RUDDER_RIGHT = 1;
-        int8_t RUDDER_LEFT = -1;
-        int8_t rudder = RUDDER_RIGHT;
         int8_t sonar_min = 255;
-        sonartemp = sonarSensor->getDistance();
-        leftMotor->setPWM(5);//右に曲がる
-        rightMotor->setPWM(1);
-        tslp_tsk(500);
+        sonartemp = sonarSensor->getDistance();//ソナーセンサーの値格納
         while (sonartemp >= 10) { //ペットボトルに近づくまで
-            if (sonar_min + 2 <= sonartemp) {
-                if (rudder == RUDDER_RIGHT) {
-                    leftMotor->setPWM(5);//左に曲がる
-                    rightMotor->setPWM(15);
-                    rudder = RUDDER_LEFT;
-                    ev3_led_set_color(LED_RED);
-                }
-                else {
-                    leftMotor->setPWM(15);//右に曲がる
-                    rightMotor->setPWM(5);
-                    rudder = RUDDER_RIGHT;
-                    ev3_led_set_color(LED_ORANGE);
-                }
+            if (sonartemp < sonar_min + 1) {
+                leftMotor->setPWM(5);//左に曲がる
+                rightMotor->setPWM(20);
+                ev3_led_set_color(LED_RED);
+                tslp_tsk(100);
             }
             else {
+                leftMotor->setPWM(20);//右に曲がる
+                rightMotor->setPWM(5);
                 ev3_led_set_color(LED_GREEN);
-                leftMotor->setPWM(20);//直進
-                rightMotor->setPWM(20);
-            }
+                tslp_tsk(100);
 
+            }
             if (sonar_min > sonartemp) {//最短距離更新
                 sonar_min = sonartemp;
             }
 
             sonartemp = sonarSensor->getDistance(); //値更新
         }
+
         leftMotor->setPWM(40);//直進
         rightMotor->setPWM(40);
         ishave = 1;
@@ -300,7 +288,7 @@ void controller_task(intptr_t unused)
         tslp_tsk(500);
         while (rgb_total > 350) {
             colorSensor->getRawColor(rgb_level); /* RGB取得 */
-            
+
             rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
             leftMotor->setPWM(40);
             rightMotor->setPWM(40);
@@ -731,3 +719,41 @@ void controlAngle(int32_t angle) {
 // 返り値 : なし
 // 概要 : しょぼいラジコン操作関数
 //*****************************************************************************
+
+
+// if(sonarSensor->getDistance() <= 45 && ishave == 0) {
+//     int8_t RUDDER_RIGHT = 1;
+//     int8_t RUDDER_LEFT = -1;
+//     int8_t rudder = RUDDER_RIGHT;
+//     int8_t sonar_min = 255;
+//     sonartemp = sonarSensor->getDistance();
+//     leftMotor->setPWM(5);//右に曲がる
+//     rightMotor->setPWM(1);
+//     tslp_tsk(500);
+//     while (sonartemp >= 10) { //ペットボトルに近づくまで
+//         if (sonar_min + 2 <= sonartemp) {
+//             if (rudder == RUDDER_RIGHT) {
+//                 leftMotor->setPWM(5);//左に曲がる
+//                 rightMotor->setPWM(15);
+//                 rudder = RUDDER_LEFT;
+//                 ev3_led_set_color(LED_RED);
+//             }
+//             else {
+//                 leftMotor->setPWM(15);//右に曲がる
+//                 rightMotor->setPWM(5);
+//                 rudder = RUDDER_RIGHT;
+//                 ev3_led_set_color(LED_ORANGE);
+//             }
+//         }
+//         else {
+//             ev3_led_set_color(LED_GREEN);
+//             leftMotor->setPWM(20);//直進
+//             rightMotor->setPWM(20);
+//         }
+//
+//         if (sonar_min > sonartemp) {//最短距離更新
+//             sonar_min = sonartemp;
+//         }
+//
+//         sonartemp = sonarSensor->getDistance(); //値更新
+//     }
