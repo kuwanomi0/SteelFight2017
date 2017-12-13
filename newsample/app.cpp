@@ -44,9 +44,9 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
-#define RGB_WHITE           800  /* 白色のRGBセンサの合計 */
-#define RGB_BLACK            80  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          436  /*90 570 875*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_WHITE           820/*800  /* 白色のRGBセンサの合計 */
+#define RGB_BLACK           310 /*80  /* 黒色のRGBセンサの合計 */
+#define RGB_TARGET          565/*436  /*90 570 875*/ /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
 #define FORWARD             15
 
@@ -229,11 +229,11 @@ void controller_task(intptr_t unused)
 
     if (pid < 0) {
         //黒の時
-        pid_L = -pid;
+        pid_L = pid;
     }
     else {
         //pid_L = -pid
-        pid_R = pid;
+        pid_R = -pid;
     }
 
     pwm_L = /*(rgb_total - RGB_TARGET) *0.1*/ +  FORWARD + pid_L;
@@ -246,12 +246,12 @@ void controller_task(intptr_t unused)
         pwm_R = 10;
     }*/
 
-    pwm_L = 20;
-    pwm_R = 20;
+    //pwm_L = 10;
+    //pwm_R = 10;
     //pwm_L = 0;
     //pwm_R = 0;
     //ペットボトル見つけたらいい感じに修正する。
-    if(sonarSensor->getDistance() <= 25 && ishave == 0) {
+    if(sonarSensor->getDistance() <= 45 && ishave == 0) {
         int8_t RUDDER_RIGHT = 1;
         int8_t RUDDER_LEFT = -1;
         int8_t rudder = RUDDER_RIGHT;
@@ -295,26 +295,26 @@ void controller_task(intptr_t unused)
         rightMotor->setPWM(0);
         armMotor_grab();
         tslp_tsk(1000);
+        leftMotor->setPWM(-40);
+        rightMotor->setPWM(40);
+        tslp_tsk(500);
+        while (rgb_total > 350) {
+            colorSensor->getRawColor(rgb_level); /* RGB取得 */
+            
+            rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
+            leftMotor->setPWM(40);
+            rightMotor->setPWM(40);
+            tslp_tsk(300);
+        }
+        armMotor_initialize();
 
     }
 
-    // if(sonarSensor->getDistance() <= 20) {
-    //     sonartemp = sonarSensor->getDistance();
-    //     leftMotor->setPWM(5);
-    //     rightMotor->setPWM(1);
-    //     tslp_tsk(500);
-    //     while (sonarSensor->getDistance() >= 7) { //ペットボトルに近づくまで
-    //         while (sonarSensor->getDistance() <= sonartemp) {
-    //             leftMotor->setPWM(10);//右に曲がる
-    //             rightMotor->setPWM(2);
-    //         }
-    //         while (sonarSensor->getDistance() >= sonartemp) {
-    //             leftMotor->setPWM(2);//左に曲がる
-    //             rightMotor->setPWM(10);
-    //         }
-    //     }
-    //     armMotor_grab();
-    // }
+    //90度曲がる
+    //赤を見つけるまで直進
+    //見つけたら少し進んでｐを置く
+    //バックして右にに９０度
+
 
     // ショボいラジコン操作
     if (bt_cmd == 'a') {
