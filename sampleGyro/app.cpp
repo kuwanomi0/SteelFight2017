@@ -7,7 +7,7 @@
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.6"
+#define VERSION "sampleGyro"
 
 #include "ev3api.h"
 #include "app.h"
@@ -95,7 +95,7 @@ void main_task(intptr_t unused)
     /* LCD画面表示 */
     char buf[64];
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
-    sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
+    sprintf(buf, "%s", VERSION );
     ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
 
     /* Open Bluetooth file */
