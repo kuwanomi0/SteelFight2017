@@ -356,66 +356,6 @@ void controller_task(intptr_t unused)
         flag = 50;
     }
 
-    // if (flag == 5) {
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 1000) {
-    //         gyroPID->setTaget(-100);
-    //         gyro = gyroSensor->getAngle();
-    //         pid = gyroPID->calcControl(gyro);
-    //         pwm_L = 55 + pid;
-    //         pwm_R = 55 - pid;
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armMotor->setPWM(0);
-    //     }
-    //     int8_t bSonerDis = sonarSensor->getDistance();
-    //     int8_t nowDis;
-    //     while (sonarSensor->getDistance() >= 6) {
-    //         nowDis = bSonerDis - sonarSensor->getDistance();
-
-    //         if (nowDis > 0) {
-    //             pwm_L = 10;
-    //             pwm_R = 10;
-    //         }
-    //         else if (nowDis < 0) {
-    //             pwm_L = 11;
-    //             pwm_R = 10;
-    //         }
-    //         else {
-    //             pwm_L = 10;
-    //             pwm_R = 11;
-    //         }
-
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-
-    //         bSonerDis = sonarSensor->getDistance();
-    //     }
-    //     flag = 1;
-    // }
-
-
-
-    // ステップ４ 方向転換
-    // if (flag == 4) {
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 450) {
-    //         leftMotor->setPWM(60);
-    //         rightMotor->setPWM(0);
-    //         armMotor->setPWM(60);
-    //     }
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 2800) {
-    //         leftMotor->setPWM(60);
-    //         rightMotor->setPWM(60);
-    //         armMotor->setPWM(0);
-    //     }
-    //     flag = 0;
-    // }
-
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
     if (pwm_A == 0) {
@@ -440,9 +380,7 @@ void controller_task(intptr_t unused)
     }
 
     /* ログを送信する処理 */
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d R%3d G:%3d B:%3d\r", volt, gyro, rgb_level.r, rgb_level.g, rgb_level.b);
     syslog(LOG_NOTICE, "V:%5d  G:%3d\r", volt, gyro);
-    // syslog(LOG_NOTICE, "V:%5d  G:%3d  DIS:%5d L:%2d R%2d\r", volt, gyro, (int)distanceWay->Distance_getDistance(),(int)distanceWay->Distance_getDistance4msL(),(int)distanceWay->Distance_getDistance4msR());
 
     BTconState();
 
