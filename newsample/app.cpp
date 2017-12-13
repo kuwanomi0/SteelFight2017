@@ -44,9 +44,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* 走行に関するマクロ */
-#define RGB_WHITE           800  /* 白色のRGBセンサの合計 */
-#define RGB_BLACK            80  /* 黒色のRGBセンサの合計 */
-#define RGB_TARGET          436  /*90 570 875*/ /*中央の境界線のRGBセンサ合計値 */
+#define RGB_TARGET          631  /* 赤と白の中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
 #define FORWARD             30
 
@@ -75,11 +73,8 @@ Motor*          armMotor;
 Motor*          leftMotor;
 Motor*          rightMotor;
 Clock*          clock;
-
-/* インスタンスの生成 */
-Distance distance_way;
-PID pid_walk( 0.15F, 0.0F,   0.02F); /* 走行用のPIDインスタンス */
-////////////
+Distance*       distanceWay;
+PID*            walkPID;
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
@@ -107,6 +102,8 @@ void main_task(intptr_t unused)
     leftMotor   = new Motor(PORT_B);
     rightMotor  = new Motor(PORT_C);
     clock       = new Clock();
+    distanceWay = new Distance();
+    walkPID     = new PID(RGB_TARGET, 0.15F, 0.0F, 0.02F);
 
     /* LCD画面表示 */
     char buf[64];
@@ -211,15 +208,15 @@ void controller_task(intptr_t unused)
      volt = ev3_battery_voltage_mV();
 
     /* 現在の走行距離を取得 */
-    distance_way.Distance_update(motor_ang_l, motor_ang_r);
-    distance_now = distance_way.Distance_getDistance();
+    distanceWay->update(motor_ang_l, motor_ang_r);
+    distance_now = distanceWay->getDistance();
 
     /* 色の取得 */
     rgb_before = rgb_total; //LPF用前処理
     colorSensor->getRawColor(rgb_level); /* RGB取得 */
     // int16_t gyroAngle = gyroSensor->getAngle();
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
-    
+
     // ショボいラジコン操作
     if (bt_cmd == 'a') {
         pwm_L = -10;

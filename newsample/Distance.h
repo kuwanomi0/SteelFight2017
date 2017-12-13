@@ -18,10 +18,10 @@ private:
     float pre_angleL, pre_angleR;
 
 public:
-    void Distance_init(int motor_ang_L, int motor_ang_R);
-    void Distance_update(int motor_ang_L, int motor_ang_R);
-    float Distance_getDistance();
-    float Distance_getDistance4msL();
-    float Distance_getDistance4msR();
+    void init(int motor_ang_L, int motor_ang_R);
+    void update(int motor_ang_L, int motor_ang_R);
+    float getDistance();
+    float getDistance4msL();
+    float getDistance4msR();
 };
 #endif
