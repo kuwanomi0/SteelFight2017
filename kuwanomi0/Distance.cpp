@@ -11,7 +11,7 @@
 #define TIRE_DIAMETER 54.9  //タイヤ直径
 
 /* 初期化関数 */
-void Distance::Distance_init(int motor_ang_L, int motor_ang_R) {
+void Distance::init(int motor_ang_L, int motor_ang_R) {
     //各変数の値の初期化
     distance = 0.0;
     distance4msR = 0.0;
@@ -22,7 +22,7 @@ void Distance::Distance_init(int motor_ang_L, int motor_ang_R) {
 }
 
 /* 距離更新（4ms間の移動距離を毎回加算している） */
-void Distance::Distance_update(int motor_ang_L, int motor_ang_R){
+void Distance::update(int motor_ang_L, int motor_ang_R){
     float cur_angleL = motor_ang_L; //左モータ回転角度の現在値
     float cur_angleR = motor_ang_R;//右モータ回転角度の現在値
     float distance4ms = 0.0;        //4msの距離
@@ -39,16 +39,16 @@ void Distance::Distance_update(int motor_ang_L, int motor_ang_R){
 }
 
 /* 走行距離を取得 */
-float Distance::Distance_getDistance(){
+float Distance::getDistance(){
     return distance;
 }
 
 /* 左タイヤの4ms間の距離を取得 */
-float Distance::Distance_getDistance4msL(){
+float Distance::getDistance4msL(){
     return distance4msL;
 }
 
 /* 右タイヤの4ms間の距離を取得 */
-float Distance::Distance_getDistance4msR(){
+float Distance::getDistance4msR(){
     return distance4msR;
 }

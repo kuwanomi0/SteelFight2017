@@ -188,7 +188,7 @@ void controller_task(intptr_t unused)
     volt = ev3_battery_voltage_mV();
 
     /* 現在の走行距離を取得 */
-    distanceWay->Distance_update(motor_ang_L, motor_ang_R);
+    distanceWay->update(motor_ang_L, motor_ang_R);
 
     /* 色の取得 */
     rgb_before = rgb_total; //LPF用前処理
@@ -196,7 +196,7 @@ void controller_task(intptr_t unused)
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
     // ステップ0 スタートからつかむ前まで
-    if (distanceWay->Distance_getDistance() <= 1600 && flag == 0) {
+    if (distanceWay->getDistance() <= 1600 && flag == 0) {
         pwm_L = 51;
         pwm_R = 60;
         pwm_A = 15;
