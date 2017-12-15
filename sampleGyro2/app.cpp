@@ -73,7 +73,6 @@ static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
-static int8_t flag = 0;
 static int32_t gyroTarget = 0;
 
 /* メインタスク */
