@@ -1,25 +1,26 @@
 /**
- * *****************************************************************************
- * ファイル名 : app.c
- *
- * 概要 : 2輪倒立振子ライントレースロボットのTOPPERS/HRP2用Cサンプルプログラム
- *
- * 注記 : sample_c4 (sample_c3にBluetooth通信リモートスタート機能を追加)
- *
- * @version task_1.0 : 2017.06.28
- *    +ディレクトリ名をtouchguy に変更する
- *    +コントロールタスク追加し周期ハンドラで動かす
+ ******************************************************************************
+ ** ファイル名 : app.cpp
+ **
+ ** 概要 : 2輪倒立振子ライントレースロボットのTOPPERS/HRP2用C++サンプルプログラム
+ **
+ ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
  ******************************************************************************
  */
-#define VERSION "task_1.0"
-
+#define VERSION "kuwanomi0_1.0"
 
 #include "ev3api.h"
 #include "app.h"
+#include "SonarSensor.h"
+#include "ColorSensor.h"
+#include "GyroSensor.h"
+#include "Motor.h"
+#include "Clock.h"
 #include "PID.h"
+#include "Distance.h"
+#include <string.h>
 
-//#include <ev3api_sensor.h>
-
+using namespace ev3api;
 
 #if defined(BUILD_MODULE)
 #include "module_cfg.h"
@@ -35,72 +36,72 @@
 #define _debug(x)
 #endif
 
-/**
- * センサー、モーターの接続を定義します
- */
-static const sensor_port_t
-    color_sensor    = EV3_PORT_1,
-    sonar_sensor    = EV3_PORT_2,
-    gyro_sensor     = EV3_PORT_3;
-
-static const motor_port_t
-    m_motor         = EV3_PORT_A,
-    left_motor      = EV3_PORT_B,
-    right_motor     = EV3_PORT_C;
-
-static int      bt_cmd = 0;     /* Bluetoothコマンド 1:リモートスタート */
-static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
+/* Bluetooth */
+static int32_t   bt_cmd = 0;      /* Bluetoothコマンド 1:リモートスタート */
+static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
-#define GYRO_OFFSET  0          /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define RGB_WHITE      630      /* 白色のRGBセンサ合計値 */
-#define RGB_BLACK       30      /* 黒色のRGBセンサ合計値*/
-#define RGB_TARGET     300      /* 中央の境界線のRGBセンサ合計値 */
-#define RGB_NULL         5      /* 何もないときのRGBセンサ合計値 */
-#define KP_WALK      0.10F      /* 走行用定数P */
-#define KI_WALK      0.000F      /* 走行用定数I */
-#define KD_WALK      0.01F      /* 走行用定数D */
-#define LIGHT_WHITE  40         /* 白色の光センサ値 */
-#define LIGHT_BLACK  0          /* 黒色の光センサ値 */
-#define SONAR_ALERT_DISTANCE 4 /* 超音波センサによる障害物検知距離[cm] */
+/* 走行に関するマクロ */
+#define RGB_TARGET          631  /*中央の境界線のRGBセンサ合計値 */
+#define KLP                 0.6  /* LPF用係数*/
+#define COLOR               160
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
-#define CALIB_FONT_WIDTH (6/*TODO: magic number*/)
-#define CALIB_FONT_HEIGHT (8/*TODO: magic number*/)
+#define CALIB_FONT_WIDTH (6/* magic number*/)
+#define CALIB_FONT_HEIGHT (8/* magic number*/)
 
 /* 関数プロトタイプ宣言 */
-static int sonar_alert(void);
+static void BTconState();
 
-/* インスタンスの生成 */
-PID pid_walk(KP_WALK, KI_WALK, KD_WALK); /* 走行用のPIDインスタンス */
+/* オブジェクトへのポインタ定義 */
+ColorSensor*    colorSensor;
+SonarSensor*    sonarSensor;
+GyroSensor*     gyroSensor;
+Motor*          armMotor;
+Motor*          leftMotor;
+Motor*          rightMotor;
+Clock*          clock;
+Distance*       distanceWay;
+PID*            walkPID; /* 走行用のPIDインスタンス */
+PID*            gyroPID;
 
-
-static signed char forward;      /* 前後進命令 */
-static signed char turn;         /* 旋回命令 */
-static signed char pwm_L, pwm_R, pwm_M; /* 左右モータPWM出力 */
-static rgb_raw_t   rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
-
+/* 走行距離 */
+static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
+static int8_t pwm_A = 0;     /* アームモータPWM出力 */
+static int8_t pwm_L = 0;     /* 左モータPWM出力 */
+static int8_t pwm_R = 0;     /* 右モータPWM出力 */
+static uint16_t rgb_total = RGB_TARGET;
+static uint16_t rgb_before;
+static int8_t flag = 0;
+static int8_t pid = 0;
+static int32_t BGYRO = -185;
+static int32_t TGYRO = -85;
+static int32_t disBefore = 0;
+static int32_t DISTAN = 800;
+static int8_t  ends = 0;
 
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    char buf[64];
+    /* 各オブジェクトを生成・初期化する */
+    colorSensor = new ColorSensor(PORT_1);
+    sonarSensor = new SonarSensor(PORT_2);
+    gyroSensor  = new GyroSensor(PORT_3);
+    armMotor    = new Motor(PORT_A);
+    leftMotor   = new Motor(PORT_B);
+    rightMotor  = new Motor(PORT_C);
+    clock       = new Clock();
+    distanceWay = new Distance();
+    walkPID     = new PID(RGB_TARGET, 0.1800F, 0.0000F, 2.2000F);
+    gyroPID     = new PID(-180, 1.2F, 0.0F, 0.0F);
+
 
     /* LCD画面表示 */
+    char buf[64];
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
     sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
     ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
-
-    /* センサー入力ポートの設定 */
-    ev3_sensor_config(color_sensor, COLOR_SENSOR);
-    ev3_color_sensor_get_reflect(color_sensor); /* 反射率モード */
-    ev3_sensor_config(sonar_sensor, ULTRASONIC_SENSOR);
-    ev3_sensor_config(gyro_sensor, GYRO_SENSOR);
-    /* モーター出力ポートの設定 */
-    ev3_motor_config(m_motor, LARGE_MOTOR);
-    ev3_motor_config(left_motor, LARGE_MOTOR);
-    ev3_motor_config(right_motor, LARGE_MOTOR);
 
     /* Open Bluetooth file */
     bt = ev3_serial_open_file(EV3_SERIAL_BT);
@@ -114,18 +115,33 @@ void main_task(intptr_t unused)
     /* スタート待機 */
     while(1) {
         if (bt_cmd == 1 || ev3_button_is_pressed(ENTER_BUTTON)) {
+            bt_cmd = 1;
             break;
         }
-        tslp_tsk(10); /* 10msecウェイト */
+
+        if (ev3_button_is_pressed(LEFT_BUTTON)) {
+            armMotor->setPWM(-20);
+        }
+        if (ev3_button_is_pressed(RIGHT_BUTTON)) {
+            armMotor->setPWM(20);
+        }
+        if (ev3_button_is_pressed(DOWN_BUTTON)) {
+            armMotor->setPWM(0);
+        }
+
+        BTconState();
+        clock->sleep(10); /* 10msecウェイト */
     }
 
-    /* 走行モーターエンコーダーリセット */
-    ev3_motor_reset_counts(m_motor);
-    ev3_motor_reset_counts(left_motor);
-    ev3_motor_reset_counts(right_motor);
+    /* モーターエンコーダーリセット */
+    leftMotor->reset();
+    rightMotor->reset();
+    armMotor->reset();
 
     /* ジャイロセンサーリセット */
-    ev3_gyro_sensor_reset(gyro_sensor);
+    gyroSensor->reset();
+
+    clock->sleep(500); /* 0.5secウェイト */
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
@@ -136,14 +152,14 @@ void main_task(intptr_t unused)
     /* 自タスク(メインタスク）を待ち状態にする */
     slp_tsk();
 
-    ev3_motor_stop(m_motor, false);
-    ev3_motor_stop(left_motor, false);
-    ev3_motor_stop(right_motor, false);
+    armMotor->reset();
+    leftMotor->reset();
+    rightMotor->reset();
+
 
     ter_tsk(BT_TASK);
     fclose(bt);
 
-    ev3_lcd_draw_string("EV3RT Stopped.", 0, CALIB_FONT_HEIGHT*9);
     ext_tsk();
 }
 
@@ -155,143 +171,291 @@ void main_task(intptr_t unused)
 //*****************************************************************************
 void controller_task(intptr_t unused)
 {
-    int rotation_flag = 0;
-    int32_t motor_ang_l, motor_ang_r, motor_ang_m;
-    int32_t motor_ang_mD = 0;
-    int gyro, volt;
-    //rgb_raw_t rgb_level;    /* カラーセンサーから取得した値を格納する構造体 */
+    int32_t motor_ang_L, motor_ang_R;
+    int32_t gyro, volt;
 
+    pwm_A = 0;
     pwm_L = 0;
     pwm_R = 0;
-    pwm_M = 0;
 
-
-    if (rotation_flag == 0) {
-        if (bt_cmd == 'd') {
-                pwm_R = 30;
-                pwm_L = -30;
-                rotation_flag = 1;
-            }
-            if (bt_cmd == 'a') {
-                pwm_R = -30;
-                pwm_L = 30;
-                rotation_flag = 1;
-            }
-            if (bt_cmd == 'w') {
-                pwm_R = 30;
-                pwm_L = 30;
-                rotation_flag = 1;
-            }
-            if (bt_cmd == 's') {
-                pwm_R = -30;
-                pwm_L = -30;
-                rotation_flag = 1;
-            }
-        }
-    else {
-        if ((bt_cmd == 'd' ||
-             bt_cmd == 'a' ||
-             bt_cmd == 'w' ||
-             bt_cmd == 's')) {
-
-                 pwm_R = 0;
-                 pwm_L = 0;
-
-            rotation_flag = 0;
-        }
-    }
-
-
-    // ショボいラジコン操作
-    /*if (bt_cmd == 'a') {
-        pwm_R = 30;
-        pwm_L = -30;
-    }
-    if (bt_cmd == 'd') {
-        pwm_R = -30;
-        pwm_L = 30;
-    }
-    if (bt_cmd == 'w') {
-        pwm_R = 30;
-        pwm_L = 30;
-    }
-    if (bt_cmd == 's') {
-        pwm_R = -30;
-        pwm_L = -30;
-    }*/
-    if (bt_cmd == 'e') {
-        pwm_R = 100;
-        pwm_L = 100;
-    }
-    if (bt_cmd == 5) {
-        pwm_L = 0;
-        pwm_R = 0;
-        pwm_M = 70;
-    }
-    if (bt_cmd == 6) {
-        pwm_L = 0;
-        pwm_R = 0;
-        pwm_M = -70;
-    }
-    if (sonar_alert() == 1){ /* 障害物検知 */
-         pwm_R = pwm_L = 0; /* 障害物を検知したら停止 */
-     }
-    //color_sensor->getRawColor(rgb_level); /* RGB取得 */
-    ev3_color_sensor_get_rgb_raw(color_sensor, &rgb_level); /* RGB取得 */
-    //turn =  pid_walk.calcControl(RGB_TARGET - (rgb_level.b));
-    forward = 10;        /* ロボの速度 */
-    turn =  pid_walk.calcControl(((RGB_BLACK + RGB_WHITE) / 2) - (rgb_level.r + rgb_level.g + rgb_level.b));
-
-    /* 倒立振子制御API に渡すパラメータを取得する */
-    motor_ang_l = ev3_motor_get_counts(left_motor);
-    motor_ang_r = ev3_motor_get_counts(right_motor);
-    motor_ang_m = ev3_motor_get_counts(m_motor);
-    gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
-    volt = ev3_battery_voltage_mV();
-
-    pwm_L = forward + turn;    // <3>
-    pwm_R = forward + turn;       // <3>
-
-    if(sonar_alert() == 1) {
-        if(-12 <= (motor_ang_m - motor_ang_mD) && (motor_ang_m - motor_ang_mD) < 13) {
-            pwm_L = 0;
-            pwm_R = 0;
-            pwm_M = 0;
-        }
-        else {
-            pwm_L = 0;
-            pwm_R = 0;
-            pwm_M = -70;
-        }
-    }
-
-    motor_ang_mD = motor_ang_m;
-
-    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
-    /* 出力0時に、その都度設定する */
-    if (pwm_L == 0) {
-         ev3_motor_stop(left_motor, true);
-    } else {
-        ev3_motor_set_power(left_motor, (int)pwm_L);
-    }
-
-    if (pwm_R == 0) {
-         ev3_motor_stop(right_motor, true);
-    } else {
-        ev3_motor_set_power(right_motor, (int)pwm_R);
-    }
-
-    if (pwm_M == 0) {
-        ev3_motor_stop(m_motor, true);
-    } else {
-        ev3_motor_set_power(m_motor, (int)pwm_M);
-    }
-
-    /* タッチセンサが押されたら停止する */
-    if (bt_cmd == 0) {
+    /* バックボタン */
+    if (ev3_button_is_pressed(BACK_BUTTON) || bt_cmd == 0 || flag == 50) {
+        ev3_led_set_color(LED_RED);
         wup_tsk(MAIN_TASK);        //メインタスクを起床する
         ev3_stp_cyc(CYC_HANDLER);  //周期ハンドラを停止する
     }
+
+    /* パラメータを取得する */
+    motor_ang_L = leftMotor->getCount();
+    motor_ang_R = rightMotor->getCount();
+    gyro = gyroSensor->getAngle();
+    volt = ev3_battery_voltage_mV();
+
+    /* 現在の走行距離を取得 */
+    distanceWay->update(motor_ang_L, motor_ang_R);
+
+    /* 色の取得 */
+    rgb_before = rgb_total; //LPF用前処理
+    colorSensor->getRawColor(rgb_level); /* RGB取得 */
+    rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
+
+    // ステップ0 スタートからつかむ前まで
+    if (distanceWay->getDistance() <= 1600 && flag == 0) {
+        pwm_L = 51;
+        pwm_R = 60;
+        pwm_A = 17;
+    }
+    else if (sonarSensor->getDistance() >= 30 && flag == 0) {
+        pwm_R = 5;
+        pwm_L = -5;
+    }
+    else if (flag == 0) {
+        int8_t bSonerDis = sonarSensor->getDistance();
+        int8_t nowDis;
+        while (sonarSensor->getDistance() >= 6) {
+            nowDis = bSonerDis - sonarSensor->getDistance();
+
+            if (nowDis > 0) {
+                pwm_L = 10;
+                pwm_R = 13;
+            }
+            else if (nowDis < 0) {
+                pwm_L = 13;
+                pwm_R = 10;
+            }
+            else {
+                pwm_L = 10;
+                pwm_R = 11;
+            }
+
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+
+            bSonerDis = sonarSensor->getDistance();
+        }
+        flag = 1;
+    }
+
+    // ステップ１ ペットボトルをつかむ
+    if (flag == 1) {
+        clock->reset();
+        clock->sleep(1);
+        while (clock->now() <= 2250) {
+            pwm_L = 10;
+            pwm_R = 10;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->setPWM(-44);
+        }
+        flag = 2;
+        if (ends == 1) {
+            flag = 8;
+        }
+    }
+
+
+    // ステップ２ 赤いところまでバック
+    if (flag == 2) {
+        if (rgb_total >= 400) {
+            gyroPID->setTaget(BGYRO);
+            gyro = gyroSensor->getAngle();
+            pid = -gyroPID->calcControl(gyro);
+            pwm_L = -55 - pid;
+            pwm_R = -55 + pid;
+        }
+        else {
+            flag = 3;
+        }
+    }
+
+    // ステップ３ ペットボトルを放す
+    if (flag == 3) {
+        BGYRO += 5;
+        clock->reset();
+        clock->sleep(1);
+        while (clock->now() <= 350) {
+            gyroPID->setTaget(BGYRO);
+            gyro = gyroSensor->getAngle();
+            pid = -gyroPID->calcControl(gyro);
+            pwm_L = -55 - pid;
+            pwm_R = -55 + pid;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->setPWM(0);
+        }
+        clock->reset();
+        clock->sleep(1);
+        while (clock->now() <= 1000) {
+            leftMotor->setPWM(0);
+            rightMotor->setPWM(0);
+            armMotor->setPWM(60);
+        }
+        clock->reset();
+        clock->sleep(1);
+        while (clock->now() <= 320) {
+            gyroPID->setTaget(BGYRO);
+            gyro = gyroSensor->getAngle();
+            pid = -gyroPID->calcControl(gyro);
+            pwm_L = -55 - pid;
+            pwm_R = -55 + pid;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->setPWM(54);
+        }
+        flag = 4;
+        pwm_L = 0;
+        pwm_R = 0;
+    }
+
+    if (flag == 4) {
+        gyro = gyroSensor->getAngle();
+        while (gyro <= TGYRO) {
+            gyro = gyroSensor->getAngle();
+            leftMotor->setPWM(60);
+            rightMotor->setPWM(0);
+            armMotor->stop();
+        }
+
+        flag = 5;
+        if (ends == 2) {
+            flag = 12;
+        }
+    }
+
+    if (flag == 5) {
+        if (gyro >= 45) {
+            DISTAN = 820;
+        }
+        motor_ang_L = leftMotor->getCount();
+        motor_ang_R = rightMotor->getCount();
+        distanceWay->update(motor_ang_L, motor_ang_R);
+        disBefore = distanceWay->getDistance();
+        while (distanceWay->getDistance() - disBefore <= DISTAN) {
+            gyroPID->setTaget(TGYRO);
+            gyro = gyroSensor->getAngle();
+            pid = gyroPID->calcControl(gyro);
+            pwm_L = 55 + pid;
+            pwm_R = 55 - pid;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->setPWM(2);
+            motor_ang_L = leftMotor->getCount();
+            motor_ang_R = rightMotor->getCount();
+            distanceWay->update(motor_ang_L, motor_ang_R);
+        }
+        DISTAN = 330;
+        BGYRO += 85;
+        TGYRO += 89;
+        flag = 0;
+        if (gyro >= 45) {
+            ends = 1;
+        }
+    }
+
+    if (flag == 8)
+    {
+        motor_ang_L = leftMotor->getCount();
+        motor_ang_R = rightMotor->getCount();
+        distanceWay->update(motor_ang_L, motor_ang_R);
+        disBefore = distanceWay->getDistance();
+        while (distanceWay->getDistance() - disBefore <= 250) {
+            pwm_L = 12;
+            pwm_R = 12;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->stop();
+            motor_ang_L = leftMotor->getCount();
+            motor_ang_R = rightMotor->getCount();
+            distanceWay->update(motor_ang_L, motor_ang_R);
+        }
+        clock->reset();
+        clock->sleep(1);
+        while (clock->now() <= 1000) {
+            leftMotor->setPWM(0);
+            rightMotor->setPWM(0);
+            armMotor->setPWM(60);
+        }
+        motor_ang_L = leftMotor->getCount();
+        motor_ang_R = rightMotor->getCount();
+        distanceWay->update(motor_ang_L, motor_ang_R);
+        disBefore = distanceWay->getDistance();
+        while (distanceWay->getDistance() - disBefore >= -200) {
+            pwm_L = -30;
+            pwm_R = -30;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->stop();
+            motor_ang_L = leftMotor->getCount();
+            motor_ang_R = rightMotor->getCount();
+            distanceWay->update(motor_ang_L, motor_ang_R);
+        }
+
+        flag = 4;
+        ends = 2;
+    }
+
+    if (flag == 12) {
+        if (rgb_total >= 500) {
+            gyroPID->setTaget(183);
+            gyro = gyroSensor->getAngle();
+            pid = gyroPID->calcControl(gyro);
+            pwm_L = 55 + pid;
+            pwm_R = 55 - pid;
+        }
+        else {
+            flag = 20;
+        }
+    }
+    if (flag == 20) {
+        motor_ang_L = leftMotor->getCount();
+        motor_ang_R = rightMotor->getCount();
+        distanceWay->update(motor_ang_L, motor_ang_R);
+        disBefore = distanceWay->getDistance();
+        while (distanceWay->getDistance() - disBefore >= 160) {
+            gyroPID->setTaget(TGYRO);
+            gyro = gyroSensor->getAngle();
+            pid = gyroPID->calcControl(gyro);
+            pwm_L = 20 + pid;
+            pwm_R = 20 - pid;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->setPWM(2);
+            motor_ang_L = leftMotor->getCount();
+            motor_ang_R = rightMotor->getCount();
+            distanceWay->update(motor_ang_L, motor_ang_R);
+        }
+    }
+
+    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
+    /* 出力0時に、その都度設定する */
+    if (pwm_A == 0) {
+        armMotor->stop();
+    }
+    else {
+        armMotor->setPWM(pwm_A);
+    }
+
+    if (pwm_L == 0) {
+        leftMotor->stop();
+    }
+    else {
+        leftMotor->setPWM(pwm_L);
+    }
+
+    if (pwm_R == 0) {
+        rightMotor->stop();
+    }
+    else {
+        rightMotor->setPWM(pwm_R);
+    }
+
+    /* ログを送信する処理 */
+    syslog(LOG_NOTICE, "V:%5d  G:%3d\r", volt, gyro);
+
+    // BTconState();
+    char bufg[64];
+    sprintf(bufg, "G:%3d", gyro);
+    ev3_lcd_draw_string(bufg, 0, CALIB_FONT_HEIGHT*4);
 
     ext_tsk();
 }
@@ -306,38 +470,6 @@ void cyc_handler(intptr_t unused)
 {
     // コントローラタスクを起動する
     act_tsk(CONTROLLER_TASK);
-}
-
-//*****************************************************************************
-// 関数名 : sonar_alert
-// 引数 : 無し
-// 返り値 : 1(障害物あり)/0(障害物無し)
-// 概要 : 超音波センサによる障害物検知
-//*****************************************************************************
-static int sonar_alert(void)
-{
-    static unsigned int counter = 0;
-    static int alert = 0;
-
-    signed int distance;
-
-    if (++counter == 40/4){ /* 約40msec周期毎に障害物検知  */
-        /*
-         * 超音波センサによる距離測定周期は、超音波の減衰特性に依存します。
-         * NXTの場合は、40msec周期程度が経験上の最短測定周期です。
-         * EV3の場合は、要確認
-         */
-        distance = ev3_ultrasonic_sensor_get_distance(sonar_sensor);
-        syslog(LOG_NOTICE, "DEBUG, 距離:%5d \r", distance);
-        if ((distance <= SONAR_ALERT_DISTANCE) && (distance >= 0)) {
-            alert = 1; /* 障害物を検知 */
-        } else {
-            alert = 0; /* 障害物無し */
-        }
-        counter = 0;
-    }
-
-    return alert;
 }
 
 //*****************************************************************************
@@ -358,30 +490,24 @@ void bt_task(intptr_t unused)
         case '0':
             bt_cmd = 0;
             break;
-        case 'w':
-            bt_cmd = 'w';
-            break;
-        case 'a':
-            bt_cmd = 'a';
-            break;
-        case 's':
-            bt_cmd = 's';
-            break;
-        case 'd':
-            bt_cmd = 'd';
-            break;
-        case 'e':
-            bt_cmd = 'e';
-            break;
-        case '5':
-            bt_cmd = 5;
-            break;
-        case '6':
-            bt_cmd = 6;
-            break;
         default:
             break;
         }
-        fputc(c, bt); /* エコーバック */
+        // fputc(c, bt); /* エコーバック */
+    }
+}
+
+//*****************************************************************************
+// 関数名 : BTconState
+// 引数 : なし
+// 返り値 : なし
+// 概要 : Bluetooth接続状態表示
+//*****************************************************************************
+static void BTconState() {
+    if (ev3_bluetooth_is_connected()) {
+        ev3_lcd_draw_string("BT connection : true ", 0, CALIB_FONT_HEIGHT*3);
+    }
+    else {
+        ev3_lcd_draw_string("BT connection : false", 0, CALIB_FONT_HEIGHT*3);
     }
 }

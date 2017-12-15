@@ -12,11 +12,12 @@
 
 /* PID制御計算メソッド */
 int PID::calcControl(int now_value) {
+    int value = target - now_value;
     float p_control, i_control, d_control, total;
 
     diff[0]   = diff[1];
-    diff[1]   = now_value;
-    if(diff[0] == diff[1]){
+    diff[1]   = value;
+    if (diff[0] == diff[1]){
         integral = 0.0F;
     }
     else {

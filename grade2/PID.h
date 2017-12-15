@@ -13,6 +13,7 @@
 class PID {
 
 private:
+    int target; /* ターゲット値*/
     float kp; /*比例定数*/
     float ki; /*積分定数*/
     float kd; /*微分定数*/
@@ -20,10 +21,14 @@ private:
     float integral; /* 積分計算用変数 */
 
 public:
-    PID(float p_value,float i_value ,float d_value) {
+    PID(int target, float p_value,float i_value ,float d_value) {
+        setTaget(target);
         setPID(p_value, i_value, d_value);
     }
     int calcControl(int now_value);
+    void setTaget(int target) {
+        this->target = target;
+    }
     void setPID(float p_value,float i_value ,float d_value) {
         kp = p_value; /*比例定数*/
         ki = i_value; /*積分定数*/

@@ -7,7 +7,7 @@
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_0.6"
+#define VERSION "kuwanomi0_1.0"
 
 #include "ev3api.h"
 #include "app.h"
@@ -225,7 +225,7 @@ void controller_task(intptr_t unused)
             }
             else {
                 pwm_L = 10;
-                pwm_R = 12;
+                pwm_R = 11;
             }
 
             leftMotor->setPWM(pwm_L);
@@ -248,6 +248,9 @@ void controller_task(intptr_t unused)
             armMotor->setPWM(-44);
         }
         flag = 2;
+        if (ends == 1) {
+            flag = 8;
+        }
     }
 
 
@@ -289,7 +292,7 @@ void controller_task(intptr_t unused)
         }
         clock->reset();
         clock->sleep(1);
-        while (clock->now() <= 300) {
+        while (clock->now() <= 320) {
             gyroPID->setTaget(BGYRO);
             gyro = gyroSensor->getAngle();
             pid = -gyroPID->calcControl(gyro);
@@ -302,9 +305,6 @@ void controller_task(intptr_t unused)
         flag = 4;
         pwm_L = 0;
         pwm_R = 0;
-        if (ends == 1) {
-            flag = 50;
-        }
     }
 
     if (flag == 4) {
@@ -317,6 +317,9 @@ void controller_task(intptr_t unused)
         }
 
         flag = 5;
+        if (ends == 2) {
+            flag = 12;
+        }
     }
 
     if (flag == 5) {
@@ -340,12 +343,86 @@ void controller_task(intptr_t unused)
             motor_ang_R = rightMotor->getCount();
             distanceWay->update(motor_ang_L, motor_ang_R);
         }
-        DISTAN = 450;
+        DISTAN = 330;
         BGYRO += 85;
-        TGYRO += 90;
+        TGYRO += 89;
         flag = 0;
         if (gyro >= 45) {
             ends = 1;
+        }
+    }
+
+    if (flag == 8)
+    {
+        motor_ang_L = leftMotor->getCount();
+        motor_ang_R = rightMotor->getCount();
+        distanceWay->update(motor_ang_L, motor_ang_R);
+        disBefore = distanceWay->getDistance();
+        while (distanceWay->getDistance() - disBefore <= 250) {
+            pwm_L = 12;
+            pwm_R = 12;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->stop();
+            motor_ang_L = leftMotor->getCount();
+            motor_ang_R = rightMotor->getCount();
+            distanceWay->update(motor_ang_L, motor_ang_R);
+        }
+        clock->reset();
+        clock->sleep(1);
+        while (clock->now() <= 1000) {
+            leftMotor->setPWM(0);
+            rightMotor->setPWM(0);
+            armMotor->setPWM(60);
+        }
+        motor_ang_L = leftMotor->getCount();
+        motor_ang_R = rightMotor->getCount();
+        distanceWay->update(motor_ang_L, motor_ang_R);
+        disBefore = distanceWay->getDistance();
+        while (distanceWay->getDistance() - disBefore >= -200) {
+            pwm_L = -30;
+            pwm_R = -30;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->stop();
+            motor_ang_L = leftMotor->getCount();
+            motor_ang_R = rightMotor->getCount();
+            distanceWay->update(motor_ang_L, motor_ang_R);
+        }
+
+        flag = 4;
+        ends = 2;
+    }
+
+    if (flag == 12) {
+        if (rgb_total >= 500) {
+            gyroPID->setTaget(183);
+            gyro = gyroSensor->getAngle();
+            pid = gyroPID->calcControl(gyro);
+            pwm_L = 55 + pid;
+            pwm_R = 55 - pid;
+        }
+        else {
+            flag = 20;
+        }
+    }
+    if (flag == 20) {
+        motor_ang_L = leftMotor->getCount();
+        motor_ang_R = rightMotor->getCount();
+        distanceWay->update(motor_ang_L, motor_ang_R);
+        disBefore = distanceWay->getDistance();
+        while (distanceWay->getDistance() - disBefore >= 160) {
+            gyroPID->setTaget(TGYRO);
+            gyro = gyroSensor->getAngle();
+            pid = gyroPID->calcControl(gyro);
+            pwm_L = 20 + pid;
+            pwm_R = 20 - pid;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armMotor->setPWM(2);
+            motor_ang_L = leftMotor->getCount();
+            motor_ang_R = rightMotor->getCount();
+            distanceWay->update(motor_ang_L, motor_ang_R);
         }
     }
 
