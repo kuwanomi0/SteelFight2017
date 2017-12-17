@@ -7,7 +7,7 @@
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_1.0"
+#define VERSION "kuwanomi0_1.1"
 
 #include "ev3api.h"
 #include "app.h"
@@ -45,6 +45,9 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define RGB_TARGET          631  /*中央の境界線のRGBセンサ合計値 */
 #define KLP                 0.6  /* LPF用係数*/
 #define COLOR               160
+#define PWM_ABS_MAX         100 /* 完全停止用モータ制御PWM絶対最大値 */
+#define ARM_OFF               0 /* 閉じている時のアームの値 */
+#define ARM_ON              600 /* 開いている時のアームの値 */
 
 /* LCDフォントサイズ */
 #define CALIB_FONT (EV3_FONT_SMALL)
@@ -52,6 +55,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define CALIB_FONT_HEIGHT (8/* magic number*/)
 
 /* 関数プロトタイプ宣言 */
+static void armControl(int angle);
 static void BTconState();
 
 /* オブジェクトへのポインタ定義 */
@@ -63,12 +67,12 @@ Motor*          leftMotor;
 Motor*          rightMotor;
 Clock*          clock;
 Distance*       distanceWay;
-PID*            walkPID; /* 走行用のPIDインスタンス */
-PID*            gyroPID;
+PID*            walkPID; /* ライントレース用のPIDインスタンス */
+PID*            gyroPID; /* ジャイロトレース用のPIDインスタンス */
+PID*            armPID;  /* アームモータ用のPID */
 
 /* 走行距離 */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
-static int8_t pwm_A = 0;     /* アームモータPWM出力 */
 static int8_t pwm_L = 0;     /* 左モータPWM出力 */
 static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
@@ -95,6 +99,7 @@ void main_task(intptr_t unused)
     distanceWay = new Distance();
     walkPID     = new PID(RGB_TARGET, 0.1800F, 0.0000F, 2.2000F);
     gyroPID     = new PID(-180, 1.2F, 0.0F, 0.0F);
+    armPID      = new PID(0, 3.5F, 0.0F, 1.0F);
 
 
     /* LCD画面表示 */
@@ -126,7 +131,7 @@ void main_task(intptr_t unused)
             armMotor->setPWM(20);
         }
         if (ev3_button_is_pressed(DOWN_BUTTON)) {
-            armMotor->setPWM(0);
+            armMotor->stop();
         }
 
         BTconState();
@@ -174,7 +179,6 @@ void controller_task(intptr_t unused)
     int32_t motor_ang_L, motor_ang_R;
     int32_t gyro, volt;
 
-    pwm_A = 0;
     pwm_L = 0;
     pwm_R = 0;
 
@@ -203,11 +207,12 @@ void controller_task(intptr_t unused)
     if (distanceWay->getDistance() <= 1600 && flag == 0) {
         pwm_L = 51;
         pwm_R = 60;
-        pwm_A = 17;
+        armControl(ARM_ON);
     }
     else if (sonarSensor->getDistance() >= 30 && flag == 0) {
         pwm_R = 5;
         pwm_L = -5;
+        armControl(ARM_ON);
     }
     else if (flag == 0) {
         int8_t bSonerDis = sonarSensor->getDistance();
@@ -230,7 +235,7 @@ void controller_task(intptr_t unused)
 
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-
+            armControl(ARM_ON);
             bSonerDis = sonarSensor->getDistance();
         }
         flag = 1;
@@ -240,12 +245,21 @@ void controller_task(intptr_t unused)
     if (flag == 1) {
         clock->reset();
         clock->sleep(1);
-        while (clock->now() <= 2250) {
+        while (clock->now() <= 1500) {
             pwm_L = 10;
             pwm_R = 10;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-            armMotor->setPWM(-44);
+            armControl(ARM_ON);
+        }
+        clock->reset();
+        clock->sleep(1);
+        while (clock->now() <= 1000) {
+            pwm_L = 0;
+            pwm_R = 0;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armControl(ARM_OFF);
         }
         flag = 2;
         if (ends == 1) {
@@ -262,6 +276,7 @@ void controller_task(intptr_t unused)
             pid = -gyroPID->calcControl(gyro);
             pwm_L = -55 - pid;
             pwm_R = -55 + pid;
+            armControl(ARM_OFF);
         }
         else {
             flag = 3;
@@ -281,14 +296,14 @@ void controller_task(intptr_t unused)
             pwm_R = -55 + pid;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-            armMotor->setPWM(0);
+            armControl(ARM_OFF);
         }
         clock->reset();
         clock->sleep(1);
         while (clock->now() <= 1000) {
             leftMotor->setPWM(0);
             rightMotor->setPWM(0);
-            armMotor->setPWM(60);
+            armControl(ARM_ON);
         }
         clock->reset();
         clock->sleep(1);
@@ -300,7 +315,7 @@ void controller_task(intptr_t unused)
             pwm_R = -55 + pid;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-            armMotor->setPWM(54);
+            armControl(ARM_ON);
         }
         flag = 4;
         pwm_L = 0;
@@ -313,7 +328,7 @@ void controller_task(intptr_t unused)
             gyro = gyroSensor->getAngle();
             leftMotor->setPWM(60);
             rightMotor->setPWM(0);
-            armMotor->stop();
+            armControl(ARM_ON);
         }
 
         flag = 5;
@@ -338,7 +353,7 @@ void controller_task(intptr_t unused)
             pwm_R = 55 - pid;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-            armMotor->setPWM(2);
+            armControl(ARM_ON);
             motor_ang_L = leftMotor->getCount();
             motor_ang_R = rightMotor->getCount();
             distanceWay->update(motor_ang_L, motor_ang_R);
@@ -363,7 +378,7 @@ void controller_task(intptr_t unused)
             pwm_R = 12;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-            armMotor->stop();
+            armControl(ARM_ON);
             motor_ang_L = leftMotor->getCount();
             motor_ang_R = rightMotor->getCount();
             distanceWay->update(motor_ang_L, motor_ang_R);
@@ -373,7 +388,7 @@ void controller_task(intptr_t unused)
         while (clock->now() <= 1000) {
             leftMotor->setPWM(0);
             rightMotor->setPWM(0);
-            armMotor->setPWM(60);
+            armControl(ARM_ON);
         }
         motor_ang_L = leftMotor->getCount();
         motor_ang_R = rightMotor->getCount();
@@ -384,7 +399,7 @@ void controller_task(intptr_t unused)
             pwm_R = -30;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-            armMotor->stop();
+            armControl(ARM_ON);
             motor_ang_L = leftMotor->getCount();
             motor_ang_R = rightMotor->getCount();
             distanceWay->update(motor_ang_L, motor_ang_R);
@@ -401,6 +416,7 @@ void controller_task(intptr_t unused)
             pid = gyroPID->calcControl(gyro);
             pwm_L = 55 + pid;
             pwm_R = 55 - pid;
+            armControl(ARM_ON);
         }
         else {
             flag = 20;
@@ -419,7 +435,7 @@ void controller_task(intptr_t unused)
             pwm_R = 20 - pid;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-            armMotor->setPWM(2);
+            armControl(ARM_ON);
             motor_ang_L = leftMotor->getCount();
             motor_ang_R = rightMotor->getCount();
             distanceWay->update(motor_ang_L, motor_ang_R);
@@ -428,13 +444,6 @@ void controller_task(intptr_t unused)
 
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
-    if (pwm_A == 0) {
-        armMotor->stop();
-    }
-    else {
-        armMotor->setPWM(pwm_A);
-    }
-
     if (pwm_L == 0) {
         leftMotor->stop();
     }
@@ -495,6 +504,28 @@ void bt_task(intptr_t unused)
         }
         // fputc(c, bt); /* エコーバック */
     }
+}
+
+//*****************************************************************************
+// 関数名 : armControl
+// 引数 : angle (モータ目標角度[度])
+// 返り値 : 無し
+// 概要 : アームの角度制御
+//*****************************************************************************
+static void armControl(int angle) {
+    armPID->setTaget(angle);
+    int pwm = (int)armPID->calcControl(armMotor->getCount()); /* PID制御 */
+    /* PWM出力飽和処理 */
+    if (pwm > PWM_ABS_MAX)
+    {
+        pwm = PWM_ABS_MAX;
+    }
+    else if (pwm < -PWM_ABS_MAX)
+    {
+        pwm = -PWM_ABS_MAX;
+    }
+
+    armMotor->setPWM(pwm);
 }
 
 //*****************************************************************************
