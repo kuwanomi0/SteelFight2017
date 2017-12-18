@@ -176,7 +176,7 @@ void main_task(intptr_t unused)
 void controller_task(intptr_t unused)
 {
     int32_t motor_ang_L, motor_ang_R;
-    int32_t gyro, volt;
+    int     gyro, volt;
 
     pwm_L = 0;
     pwm_R = 0;
@@ -333,6 +333,7 @@ void controller_task(intptr_t unused)
         pwm_R = 0;
     }
 
+    // 90度カーブ
     if (flag == 4) {
         gyro = gyroSensor->getAngle();
         while (gyro <= TGYRO) {
@@ -341,13 +342,13 @@ void controller_task(intptr_t unused)
             rightMotor->setPWM(0);
             armControl(ARM_ON);
         }
-
         flag = 5;
         if (ends == 2) {
             flag = 12;
         }
     }
 
+    // 次のペットボトルの近くまで近づく
     if (flag == 5) {
         if (gyro >= 45) {
             DISTAN = 820;
@@ -378,6 +379,7 @@ void controller_task(intptr_t unused)
         }
     }
 
+    // ペットボトルを押し出す
     if (flag == 8) {
         motor_ang_L = leftMotor->getCount();
         motor_ang_R = rightMotor->getCount();
@@ -419,6 +421,7 @@ void controller_task(intptr_t unused)
         ends = 2;
     }
 
+    // ゴールに向かって走る
     if (flag == 12) {
         if (rgb_total >= 500) {
             gyroPID->setTaget(183);
@@ -429,26 +432,7 @@ void controller_task(intptr_t unused)
             armControl(ARM_ON);
         }
         else {
-            flag = 20;
-        }
-    }
-    if (flag == 20) {
-        motor_ang_L = leftMotor->getCount();
-        motor_ang_R = rightMotor->getCount();
-        distanceWay->update(motor_ang_L, motor_ang_R);
-        disBefore = distanceWay->getDistance();
-        while (distanceWay->getDistance() - disBefore >= 160) {
-            gyroPID->setTaget(TGYRO);
-            gyro = gyroSensor->getAngle();
-            pid = gyroPID->calcControl(gyro);
-            pwm_L = 20 + pid;
-            pwm_R = 20 - pid;
-            leftMotor->setPWM(pwm_L);
-            rightMotor->setPWM(pwm_R);
-            armControl(ARM_ON);
-            motor_ang_L = leftMotor->getCount();
-            motor_ang_R = rightMotor->getCount();
-            distanceWay->update(motor_ang_L, motor_ang_R);
+            flag = 50;
         }
     }
 
