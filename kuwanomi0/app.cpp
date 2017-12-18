@@ -124,6 +124,9 @@ void main_task(intptr_t unused)
             break;
         }
 
+        char bufg[64];
+        sprintf(bufg, "G:%4d", gyroSensor->getAngle());
+        ev3_lcd_draw_string(bufg, 0, CALIB_FONT_HEIGHT*4);
         if (ev3_button_is_pressed(LEFT_BUTTON)) {
             armMotor->setPWM(-20);
         }
@@ -453,10 +456,10 @@ void controller_task(intptr_t unused)
     }
 
     /* ログを送信する処理 */
-    syslog(LOG_NOTICE, "V:%5d  G:%3d\r", volt, gyro);
+    syslog(LOG_NOTICE, "V:%5d  G:%4d\r", volt, gyro);
 
     char bufg[64];
-    sprintf(bufg, "G:%3d", gyro);
+    sprintf(bufg, "G:%4d", gyro);
     ev3_lcd_draw_string(bufg, 0, CALIB_FONT_HEIGHT*4);
 
     ext_tsk();
