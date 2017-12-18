@@ -56,7 +56,6 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 
 /* 関数プロトタイプ宣言 */
 static void armControl(int angle);
-static void BTconState();
 
 /* オブジェクトへのポインタ定義 */
 ColorSensor*    colorSensor;
@@ -84,6 +83,7 @@ static int32_t TGYRO = -85;
 static int32_t disBefore = 0;
 static int32_t DISTAN = 800;
 static int8_t  ends = 0;
+static int32_t  sCount = 0;
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -134,7 +134,6 @@ void main_task(intptr_t unused)
             armMotor->stop();
         }
 
-        BTconState();
         clock->sleep(10); /* 10msecウェイト */
     }
 
@@ -146,7 +145,7 @@ void main_task(intptr_t unused)
     /* ジャイロセンサーリセット */
     gyroSensor->reset();
 
-    clock->sleep(500); /* 0.5secウェイト */
+    clock->sleep(250); /* 0.5secウェイト */
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
@@ -204,20 +203,32 @@ void controller_task(intptr_t unused)
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
     // ステップ0 スタートからつかむ前まで
-    if (distanceWay->getDistance() <= 1600 && flag == 0) {
+    if (distanceWay->getDistance() <= 1600 && flag == 0) { // 1600mm前進するまで
         pwm_L = 51;
         pwm_R = 60;
         armControl(ARM_ON);
     }
-    else if (sonarSensor->getDistance() >= 30 && flag == 0) {
-        pwm_R = 5;
-        pwm_L = -5;
+    else if (sonarSensor->getDistance() >= 30 && flag == 0) { // ソナーセンサーが30cm以上の値を返しているとき
+        if (sCount <= 1000/4) {
+            pwm_L = -5;
+            pwm_R =  5;
+            sCount++;
+        }
+        else if (sCount <= 3000/4) {
+            pwm_L =  5;
+            pwm_R = -5;
+            sCount++;
+        }
+        else {
+            sCount = -1000/4;
+        }
         armControl(ARM_ON);
     }
     else if (flag == 0) {
+        sCount = 0;
         int8_t bSonerDis = sonarSensor->getDistance();
         int8_t nowDis;
-        while (sonarSensor->getDistance() >= 6) {
+        while (sonarSensor->getDistance() >= 6) { //ソナーセンサーが6cm以上の値を返しているとき
             nowDis = bSonerDis - sonarSensor->getDistance();
 
             if (nowDis > 0) {
@@ -238,14 +249,14 @@ void controller_task(intptr_t unused)
             armControl(ARM_ON);
             bSonerDis = sonarSensor->getDistance();
         }
-        flag = 1;
+        flag = 1; // 次の処理へ
     }
 
     // ステップ１ ペットボトルをつかむ
     if (flag == 1) {
         clock->reset();
         clock->sleep(1);
-        while (clock->now() <= 1500) {
+        while (clock->now() <= 1500) { // 1500ms経過するまで
             pwm_L = 10;
             pwm_R = 10;
             leftMotor->setPWM(pwm_L);
@@ -270,7 +281,7 @@ void controller_task(intptr_t unused)
 
     // ステップ２ 赤いところまでバック
     if (flag == 2) {
-        if (rgb_total >= 400) {
+        if (rgb_total >= 400) {  //RGB値が400以上であるとき
             gyroPID->setTaget(BGYRO);
             gyro = gyroSensor->getAngle();
             pid = -gyroPID->calcControl(gyro);
@@ -367,8 +378,7 @@ void controller_task(intptr_t unused)
         }
     }
 
-    if (flag == 8)
-    {
+    if (flag == 8) {
         motor_ang_L = leftMotor->getCount();
         motor_ang_R = rightMotor->getCount();
         distanceWay->update(motor_ang_L, motor_ang_R);
@@ -461,7 +471,6 @@ void controller_task(intptr_t unused)
     /* ログを送信する処理 */
     syslog(LOG_NOTICE, "V:%5d  G:%3d\r", volt, gyro);
 
-    // BTconState();
     char bufg[64];
     sprintf(bufg, "G:%3d", gyro);
     ev3_lcd_draw_string(bufg, 0, CALIB_FONT_HEIGHT*4);
@@ -516,29 +525,12 @@ static void armControl(int angle) {
     armPID->setTaget(angle);
     int pwm = (int)armPID->calcControl(armMotor->getCount()); /* PID制御 */
     /* PWM出力飽和処理 */
-    if (pwm > PWM_ABS_MAX)
-    {
+    if (pwm > PWM_ABS_MAX) {
         pwm = PWM_ABS_MAX;
     }
-    else if (pwm < -PWM_ABS_MAX)
-    {
+    else if (pwm < -PWM_ABS_MAX) {
         pwm = -PWM_ABS_MAX;
     }
 
     armMotor->setPWM(pwm);
-}
-
-//*****************************************************************************
-// 関数名 : BTconState
-// 引数 : なし
-// 返り値 : なし
-// 概要 : Bluetooth接続状態表示
-//*****************************************************************************
-static void BTconState() {
-    if (ev3_bluetooth_is_connected()) {
-        ev3_lcd_draw_string("BT connection : true ", 0, CALIB_FONT_HEIGHT*3);
-    }
-    else {
-        ev3_lcd_draw_string("BT connection : false", 0, CALIB_FONT_HEIGHT*3);
-    }
 }
