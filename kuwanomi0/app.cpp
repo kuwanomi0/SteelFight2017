@@ -66,7 +66,6 @@ Motor*          leftMotor;
 Motor*          rightMotor;
 Clock*          clock;
 Distance*       distanceWay;
-PID*            walkPID; /* ライントレース用のPIDインスタンス */
 PID*            gyroPID; /* ジャイロトレース用のPIDインスタンス */
 PID*            armPID;  /* アームモータ用のPID */
 
@@ -77,11 +76,12 @@ static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
 static int8_t flag = 0;
+static int8_t startFlag = 0;
 static int8_t pid = 0;
-static int32_t BGYRO = -185;
-static int32_t TGYRO = -85;
+static int32_t BGYRO = -91;
+static int32_t TGYRO =   6;
 static int32_t disBefore = 0;
-static int32_t DISTAN = 800;
+static int32_t DISTAN = 830;
 static int8_t  ends = 0;
 static int32_t  sCount = 0;
 
@@ -97,8 +97,7 @@ void main_task(intptr_t unused)
     rightMotor  = new Motor(PORT_C);
     clock       = new Clock();
     distanceWay = new Distance();
-    walkPID     = new PID(RGB_TARGET, 0.1800F, 0.0000F, 2.2000F);
-    gyroPID     = new PID(-180, 1.2F, 0.0F, 0.0F);
+    gyroPID     = new PID(-180, 1.0F, 0.0005F, 0.07F);
     armPID      = new PID(0, 3.5F, 0.0F, 1.0F);
 
 
@@ -206,9 +205,12 @@ void controller_task(intptr_t unused)
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
     // ステップ0 スタートからつかむ前まで
-    if (distanceWay->getDistance() <= 1600 && flag == 0) { // 1600mm前進するまで
-        pwm_L = 51;
-        pwm_R = 60;
+    if (distanceWay->getDistance() <= 1000 && flag == 0 && startFlag == 0) { // 1600mm前進するまで
+        gyroPID->setTaget(0);
+        gyro = gyroSensor->getAngle();
+        pid = gyroPID->calcControl(gyro);
+        pwm_L = 55 + pid;
+        pwm_R = 55 - pid;
         armControl(ARM_ON);
     }
     else if (sonarSensor->getDistance() >= 30 && flag == 0) { // ソナーセンサーが30cm以上の値を返しているとき
@@ -257,6 +259,7 @@ void controller_task(intptr_t unused)
 
     // ステップ１ ペットボトルをつかむ
     if (flag == 1) {
+
         clock->reset();
         clock->sleep(1);
         while (clock->now() <= 1500) { // 1500ms経過するまで
@@ -265,6 +268,17 @@ void controller_task(intptr_t unused)
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
             armControl(ARM_ON);
+        }
+        if (startFlag == 0) {
+            // 90度カーブ
+            gyro = gyroSensor->getAngle();
+            while (gyro >= -90) {
+                gyro = gyroSensor->getAngle();
+                leftMotor->setPWM(0);
+                rightMotor->setPWM(30);
+                armControl(ARM_ON);
+            }
+            startFlag = 1;
         }
         clock->reset();
         clock->sleep(1);
@@ -299,10 +313,10 @@ void controller_task(intptr_t unused)
 
     // ステップ３ ペットボトルを放す
     if (flag == 3) {
-        BGYRO += 5;
+        BGYRO += 1;
         clock->reset();
         clock->sleep(1);
-        while (clock->now() <= 350) {
+        while (clock->now() <= 400) {
             gyroPID->setTaget(BGYRO);
             gyro = gyroSensor->getAngle();
             pid = -gyroPID->calcControl(gyro);
@@ -321,7 +335,7 @@ void controller_task(intptr_t unused)
         }
         clock->reset();
         clock->sleep(1);
-        while (clock->now() <= 320) {
+        while (clock->now() <= 400) {
             gyroPID->setTaget(BGYRO);
             gyro = gyroSensor->getAngle();
             pid = -gyroPID->calcControl(gyro);
@@ -339,9 +353,12 @@ void controller_task(intptr_t unused)
     // 90度カーブ
     if (flag == 4) {
         gyro = gyroSensor->getAngle();
+        if (ends == 2) {
+            TGYRO = 270;
+        }
         while (gyro <= TGYRO) {
             gyro = gyroSensor->getAngle();
-            leftMotor->setPWM(60);
+            leftMotor->setPWM(30);
             rightMotor->setPWM(0);
             armControl(ARM_ON);
         }
@@ -353,8 +370,8 @@ void controller_task(intptr_t unused)
 
     // 次のペットボトルの近くまで近づく
     if (flag == 5) {
-        if (gyro >= 45) {
-            DISTAN = 820;
+        if (gyro >= 135) {
+            DISTAN = 830;
         }
         motor_ang_L = leftMotor->getCount();
         motor_ang_R = rightMotor->getCount();
@@ -373,11 +390,11 @@ void controller_task(intptr_t unused)
             motor_ang_R = rightMotor->getCount();
             distanceWay->update(motor_ang_L, motor_ang_R);
         }
-        DISTAN = 330;
-        BGYRO += 85;
+        DISTAN = 280;
+        BGYRO += 89;
         TGYRO += 89;
         flag = 0;
-        if (gyro >= 45) {
+        if (gyro >= 135) {
             ends = 1;
         }
     }
@@ -393,7 +410,7 @@ void controller_task(intptr_t unused)
             pwm_R = 12;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
-            armControl(ARM_ON);
+            armControl(ARM_OFF);
             motor_ang_L = leftMotor->getCount();
             motor_ang_R = rightMotor->getCount();
             distanceWay->update(motor_ang_L, motor_ang_R);
@@ -427,7 +444,7 @@ void controller_task(intptr_t unused)
     // ゴールに向かって走る
     if (flag == 12) {
         if (rgb_total >= 500) {
-            gyroPID->setTaget(183);
+            gyroPID->setTaget(270);
             gyro = gyroSensor->getAngle();
             pid = gyroPID->calcControl(gyro);
             pwm_L = 55 + pid;
