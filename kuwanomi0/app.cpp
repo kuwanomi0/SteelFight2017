@@ -7,7 +7,7 @@
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_2.0"
+#define VERSION "kuwanomi0_2.1"
 
 #include "ev3api.h"
 #include "app.h"
@@ -46,7 +46,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define KLP                 0.6  /* LPF用係数*/
 #define COLOR               160
 #define PWM_ABS_MAX         100 /* 完全停止用モータ制御PWM絶対最大値 */
-#define ARM_OFF            -100 /* 閉じている時のアームの値 */
+#define ARM_OFF            -200 /* 閉じている時のアームの値 */
 #define ARM_ON              600 /* 開いている時のアームの値 */
 
 /* LCDフォントサイズ */
@@ -219,8 +219,11 @@ void controller_task(intptr_t unused)
         distanceWay->update(motor_ang_L, motor_ang_R);
         disBefore = distanceWay->getDistance();
         while (distanceWay->getDistance() - disBefore <= 920) {
-            pwm_L = 50;
-            pwm_R = 50;
+            gyroPID->setTaget(0);
+            gyro = gyroSensor->getAngle();
+            pid = gyroPID->calcControl(gyro);
+            pwm_L = 55 + pid;
+            pwm_R = 55 - pid;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
             armControl(ARM_ON);
@@ -292,6 +295,15 @@ void controller_task(intptr_t unused)
                 gyro = gyroSensor->getAngle();
                 leftMotor->setPWM(0);
                 rightMotor->setPWM(30);
+                armControl(ARM_ON);
+            }
+            clock->reset();
+            clock->sleep(1);
+            while (clock->now() <= 200) { // 100ms経過するまで
+                pwm_L = 10;
+                pwm_R = 10;
+                leftMotor->setPWM(pwm_L);
+                rightMotor->setPWM(pwm_R);
                 armControl(ARM_ON);
             }
             startFlag = 1;
