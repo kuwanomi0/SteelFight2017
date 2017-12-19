@@ -7,7 +7,7 @@
  ** 注記 : sample_cpp (ライントレース/尻尾モータ/超音波センサ/リモートスタート)
  ******************************************************************************
  */
-#define VERSION "kuwanomi0_1.1"
+#define VERSION "kuwanomi0_2.0"
 
 #include "ev3api.h"
 #include "app.h"
@@ -46,7 +46,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define KLP                 0.6  /* LPF用係数*/
 #define COLOR               160
 #define PWM_ABS_MAX         100 /* 完全停止用モータ制御PWM絶対最大値 */
-#define ARM_OFF               0 /* 閉じている時のアームの値 */
+#define ARM_OFF            -100 /* 閉じている時のアームの値 */
 #define ARM_ON              600 /* 開いている時のアームの値 */
 
 /* LCDフォントサイズ */
@@ -78,8 +78,8 @@ static uint16_t rgb_before;
 static int8_t flag = 0;
 static int8_t startFlag = 0;
 static int8_t pid = 0;
-static int32_t BGYRO = -91;
-static int32_t TGYRO =   6;
+static int32_t BGYRO = -95;
+static int32_t TGYRO =   0;
 static int32_t disBefore = 0;
 static int32_t DISTAN = 830;
 static int8_t  ends = 0;
@@ -126,6 +126,10 @@ void main_task(intptr_t unused)
         char bufg[64];
         sprintf(bufg, "G:%4d", gyroSensor->getAngle());
         ev3_lcd_draw_string(bufg, 0, CALIB_FONT_HEIGHT*4);
+        if (ev3_button_is_pressed(UP_BUTTON)) {
+            leftMotor->setPWM(20);
+            rightMotor->setPWM(20);
+        }
         if (ev3_button_is_pressed(LEFT_BUTTON)) {
             armMotor->setPWM(-20);
         }
@@ -134,10 +138,14 @@ void main_task(intptr_t unused)
         }
         if (ev3_button_is_pressed(DOWN_BUTTON)) {
             armMotor->stop();
+            leftMotor->setPWM(0);
+            rightMotor->setPWM(0);
         }
 
         clock->sleep(10); /* 10msecウェイト */
     }
+
+    clock->sleep(1000); /* 0.5secウェイト */
 
     /* モーターエンコーダーリセット */
     leftMotor->reset();
@@ -147,7 +155,7 @@ void main_task(intptr_t unused)
     /* ジャイロセンサーリセット */
     gyroSensor->reset();
 
-    clock->sleep(250); /* 0.5secウェイト */
+    clock->sleep(500); /* 0.5secウェイト */
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
@@ -205,13 +213,21 @@ void controller_task(intptr_t unused)
     rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
 
     // ステップ0 スタートからつかむ前まで
-    if (distanceWay->getDistance() <= 1000 && flag == 0 && startFlag == 0) { // 1600mm前進するまで
-        gyroPID->setTaget(0);
-        gyro = gyroSensor->getAngle();
-        pid = gyroPID->calcControl(gyro);
-        pwm_L = 55 + pid;
-        pwm_R = 55 - pid;
-        armControl(ARM_ON);
+    if (distanceWay->getDistance() <= 500 && flag == 0 && startFlag == 0) { // 1600mm前進するまで
+        motor_ang_L = leftMotor->getCount();
+        motor_ang_R = rightMotor->getCount();
+        distanceWay->update(motor_ang_L, motor_ang_R);
+        disBefore = distanceWay->getDistance();
+        while (distanceWay->getDistance() - disBefore <= 920) {
+            pwm_L = 50;
+            pwm_R = 50;
+            leftMotor->setPWM(pwm_L);
+            rightMotor->setPWM(pwm_R);
+            armControl(ARM_ON);
+            motor_ang_L = leftMotor->getCount();
+            motor_ang_R = rightMotor->getCount();
+            distanceWay->update(motor_ang_L, motor_ang_R);
+        }
     }
     else if (sonarSensor->getDistance() >= 30 && flag == 0) { // ソナーセンサーが30cm以上の値を返しているとき
         if (sCount <= 1000/4) {
@@ -262,7 +278,7 @@ void controller_task(intptr_t unused)
 
         clock->reset();
         clock->sleep(1);
-        while (clock->now() <= 1500) { // 1500ms経過するまで
+        while (clock->now() <= 1200) { // 1500ms経過するまで
             pwm_L = 10;
             pwm_R = 10;
             leftMotor->setPWM(pwm_L);
@@ -313,7 +329,7 @@ void controller_task(intptr_t unused)
 
     // ステップ３ ペットボトルを放す
     if (flag == 3) {
-        BGYRO += 1;
+        BGYRO += 5;
         clock->reset();
         clock->sleep(1);
         while (clock->now() <= 400) {
@@ -391,7 +407,7 @@ void controller_task(intptr_t unused)
             distanceWay->update(motor_ang_L, motor_ang_R);
         }
         DISTAN = 280;
-        BGYRO += 89;
+        BGYRO += 85;
         TGYRO += 89;
         flag = 0;
         if (gyro >= 135) {
@@ -406,8 +422,8 @@ void controller_task(intptr_t unused)
         distanceWay->update(motor_ang_L, motor_ang_R);
         disBefore = distanceWay->getDistance();
         while (distanceWay->getDistance() - disBefore <= 250) {
-            pwm_L = 12;
-            pwm_R = 12;
+            pwm_L = 30;
+            pwm_R = 30;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
             armControl(ARM_OFF);
@@ -427,8 +443,8 @@ void controller_task(intptr_t unused)
         distanceWay->update(motor_ang_L, motor_ang_R);
         disBefore = distanceWay->getDistance();
         while (distanceWay->getDistance() - disBefore >= -200) {
-            pwm_L = -30;
-            pwm_R = -30;
+            pwm_L = -50;
+            pwm_R = -50;
             leftMotor->setPWM(pwm_L);
             rightMotor->setPWM(pwm_R);
             armControl(ARM_ON);
