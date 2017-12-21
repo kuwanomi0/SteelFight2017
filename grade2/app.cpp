@@ -46,7 +46,7 @@ static FILE     *bt = NULL;      /* Bluetoothファイルハンドル */
 #define KLP                 0.6  /* LPF用係数*/
 #define COLOR               160
 #define PWM_ABS_MAX         100 /* 完全停止用モータ制御PWM絶対最大値 */
-#define ARM_OFF            -200 /* 閉じている時のアームの値 */
+#define ARM_OFF            -180 /* 閉じている時のアームの値 */
 #define ARM_ON              600 /* 開いている時のアームの値 */
 
 /* LCDフォントサイズ */
@@ -257,15 +257,15 @@ void controller_task(intptr_t unused)
 
             if (nowDis > 0) {
                 pwm_L = 10;
-                pwm_R = 13;
+                pwm_R = 12;
             }
             else if (nowDis < 0) {
-                pwm_L = 13;
+                pwm_L = 12;
                 pwm_R = 10;
             }
             else {
                 pwm_L = 10;
-                pwm_R = 11;
+                pwm_R = 10;
             }
 
             leftMotor->setPWM(pwm_L);
@@ -399,6 +399,7 @@ void controller_task(intptr_t unused)
     // 次のペットボトルの近くまで近づく
     if (flag == 5) {
         if (gyro >= 135) {
+            TGYRO += 3;
             DISTAN = 830;
         }
         motor_ang_L = leftMotor->getCount();
@@ -471,7 +472,7 @@ void controller_task(intptr_t unused)
 
     // ゴールに向かって走る
     if (flag == 12) {
-        if (rgb_total >= 500) {
+        if (rgb_total >= 600) {
             gyroPID->setTaget(270);
             gyro = gyroSensor->getAngle();
             pid = gyroPID->calcControl(gyro);
