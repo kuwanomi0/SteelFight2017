@@ -65,6 +65,7 @@ Motor*          armMotor;
 Motor*          leftMotor;
 Motor*          rightMotor;
 Clock*          clock;
+Clock*          TIME;
 Distance*       distanceWay;
 PID*            gyroPID; /* ジャイロトレース用のPIDインスタンス */
 PID*            armPID;  /* アームモータ用のPID */
@@ -96,6 +97,7 @@ void main_task(intptr_t unused)
     leftMotor   = new Motor(PORT_B);
     rightMotor  = new Motor(PORT_C);
     clock       = new Clock();
+    TIME        = new Clock();
     distanceWay = new Distance();
     gyroPID     = new PID(-180, 1.0F, 0.0005F, 0.07F);
     armPID      = new PID(0, 3.5F, 0.0F, 1.0F);
@@ -145,6 +147,8 @@ void main_task(intptr_t unused)
         clock->sleep(10); /* 10msecウェイト */
     }
 
+    TIME->reset();
+
     clock->sleep(1000); /* 0.5secウェイト */
 
     /* モーターエンコーダーリセット */
@@ -192,7 +196,7 @@ void controller_task(intptr_t unused)
     pwm_R = 0;
 
     /* バックボタン */
-    if (ev3_button_is_pressed(BACK_BUTTON) || bt_cmd == 0 || flag == 50) {
+    if (ev3_button_is_pressed(BACK_BUTTON) || bt_cmd == 0 || flag == 50 || TIME->now() >= 64000) {
         ev3_led_set_color(LED_RED);
         wup_tsk(MAIN_TASK);        //メインタスクを起床する
         ev3_stp_cyc(CYC_HANDLER);  //周期ハンドラを停止する
@@ -472,7 +476,7 @@ void controller_task(intptr_t unused)
 
     // ゴールに向かって走る
     if (flag == 12) {
-        if (rgb_total >= 600) {
+        if (rgb_total >= 700) {
             gyroPID->setTaget(270);
             gyro = gyroSensor->getAngle();
             pid = gyroPID->calcControl(gyro);
