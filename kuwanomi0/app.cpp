@@ -84,7 +84,8 @@ static int8_t startFlag = 0;
 static int32_t BGYRO = -95;
 // static int32_t TGYRO =   0;
 static int32_t disBefore = 0;
-// static int32_t DISTAN = 830;
+static int32_t minDis = 250;
+static int32_t mindisGyro = 0;
 // static int8_t  ends = 0;
 // static int32_t  sCount = 0;
 
@@ -226,256 +227,108 @@ void controller_task(intptr_t unused)
         turn = -gyroPID->calcControl(gyro);
         forward = 55;
     }
-    else if (sonarSensor->getDistance() >= 120 && flag == 0) { // 120cm内を探索する
-        startFlag = 1;
-        forward = 0;
-        turn = 0;
-        pwm_L = -5;
-        pwm_R =  5;
+    else
+    if (flag == 0) { // 120cm内を探索する
+        pwm_L =  5;
+        pwm_R = -5;
         steeringSwitch = 0;
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
+        if (sonarSensor->getDistance() <= 120) {
+            BGYRO = gyro + 40;
+            flag = 1;
+            startFlag = 1;
+            minDis = sonarSensor->getDistance();
+            mindisGyro = gyro;
+        }
     }
-    else if (flag == 0){
-        disBefore = distanceWay->getDistance();
-        BGYRO = gyro;
-        flag = 1;
+
+    if (flag == 1) {
+        pwm_L =  1;
+        pwm_R = -1;
+        steeringSwitch = 0;
+        leftMotor->setPWM(pwm_L);
+        rightMotor->setPWM(pwm_R);
+        ev3_led_set_color(LED_ORANGE);
+        if (minDis > sonarSensor->getDistance()) {
+            minDis = sonarSensor->getDistance();
+            mindisGyro = gyro;
+        }
+        if (gyro > BGYRO) {
+            flag = 2;
+        }
     }
-    // else if (flag == 0) {
-    //     sCount = 0;
-    //     int8_t bSonerDis = sonarSensor->getDistance();
-    //     int8_t nowDis;
-    //     while (sonarSensor->getDistance() >= 6) { //ソナーセンサーが6cm以上の値を返しているとき
-    //         nowDis = bSonerDis - sonarSensor->getDistance();
 
-    //         if (nowDis > 0) {
-    //             pwm_L = 10;
-    //             pwm_R = 13;
-    //         }
-    //         else if (nowDis < 0) {
-    //             pwm_L = 13;
-    //             pwm_R = 10;
-    //         }
-    //         else {
-    //             pwm_L = 10;
-    //             pwm_R = 11;
-    //         }
-
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armControl(ARM_ON);
-    //         bSonerDis = sonarSensor->getDistance();
-    //     }
-    //     flag = 1; // 次の処理へ
-    // }
-
-    // // ステップ１ ペットボトルをつかむ
-    // if (flag == 1) {
-
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 1200) { // 1500ms経過するまで
-    //         pwm_L = 10;
-    //         pwm_R = 10;
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armControl(ARM_ON);
-    //     }
-    //     if (startFlag == 0) {
-    //         // 90度カーブ
-    //         gyro = gyroSensor->getAngle();
-    //         while (gyro >= -90) {
-    //             gyro = gyroSensor->getAngle();
-    //             leftMotor->setPWM(0);
-    //             rightMotor->setPWM(30);
-    //             armControl(ARM_ON);
-    //         }
-    //         clock->reset();
-    //         clock->sleep(1);
-    //         while (clock->now() <= 200) { // 100ms経過するまで
-    //             pwm_L = 10;
-    //             pwm_R = 10;
-    //             leftMotor->setPWM(pwm_L);
-    //             rightMotor->setPWM(pwm_R);
-    //             armControl(ARM_ON);
-    //         }
-    //         startFlag = 1;
-    //     }
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 1000) {
-    //         pwm_L = 0;
-    //         pwm_R = 0;
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armControl(ARM_OFF);
-    //     }
-    //     flag = 2;
-    //     if (ends == 1) {
-    //         flag = 8;
-    //     }
-    // }
+    if (flag == 2) {
+        pwm_L = -2;
+        pwm_R =  2;
+        steeringSwitch = 0;
+        leftMotor->setPWM(pwm_L);
+        rightMotor->setPWM(pwm_R);
+        ev3_led_set_color(LED_RED);
+        if (gyro < mindisGyro) {
+            disBefore = distanceWay->getDistance();
+            BGYRO = mindisGyro;
+            flag = 3;
+        }
+    }
 
 
-    // // ステップ２ 赤いところまでバック
-    // if (flag == 2) {
-    //     if (rgb_total >= 400) {  //RGB値が400以上であるとき
-    //         gyroPID->setTaget(BGYRO);
-    //         gyro = gyroSensor->getAngle();
-    //         pid = -gyroPID->calcControl(gyro);
-    //         pwm_L = -55 - pid;
-    //         pwm_R = -55 + pid;
-    //         armControl(ARM_OFF);
-    //     }
-    //     else {
-    //         flag = 3;
-    //     }
-    // }
+    if (flag == 3) {
+        gyroPID->setTaget(BGYRO);
+        turn = -gyroPID->calcControl(gyro);
+        if (distanceWay->getDistance() > disBefore + (minDis * 9) ) {
+            flag = 4;
+        }
+    }
 
-    // // ステップ３ ペットボトルを放す
-    // if (flag == 3) {
-    //     BGYRO += 5;
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 400) {
-    //         gyroPID->setTaget(BGYRO);
-    //         gyro = gyroSensor->getAngle();
-    //         pid = -gyroPID->calcControl(gyro);
-    //         pwm_L = -55 - pid;
-    //         pwm_R = -55 + pid;
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armControl(ARM_OFF);
-    //     }
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 1000) {
-    //         leftMotor->setPWM(0);
-    //         rightMotor->setPWM(0);
-    //         armControl(ARM_ON);
-    //     }
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 400) {
-    //         gyroPID->setTaget(BGYRO);
-    //         gyro = gyroSensor->getAngle();
-    //         pid = -gyroPID->calcControl(gyro);
-    //         pwm_L = -55 - pid;
-    //         pwm_R = -55 + pid;
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armControl(ARM_ON);
-    //     }
-    //     flag = 4;
-    //     pwm_L = 0;
-    //     pwm_R = 0;
-    // }
+    if (flag == 4) {
+        forward = 20;
+        gyroPID->setTaget(BGYRO);
+        turn = -gyroPID->calcControl(gyro);
+        armSwitch = ARM_OFF;
+        if (rgb_total < 500) {
+            forward = turn = 0;
+            armSwitch = ARM_ON;
+            flag = 5;
+            clock->reset();
+            clock->sleep(1);
+        }
+    }
 
-    // // 90度カーブ
-    // if (flag == 4) {
-    //     gyro = gyroSensor->getAngle();
-    //     if (ends == 2) {
-    //         TGYRO = 270;
-    //     }
-    //     while (gyro <= TGYRO) {
-    //         gyro = gyroSensor->getAngle();
-    //         leftMotor->setPWM(30);
-    //         rightMotor->setPWM(0);
-    //         armControl(ARM_ON);
-    //     }
-    //     flag = 5;
-    //     if (ends == 2) {
-    //         flag = 12;
-    //     }
-    // }
+    if (flag == 5) {
+        pwm_L = 0;
+        pwm_R = 0;
+        steeringSwitch = 0;
+        leftMotor->setPWM(pwm_L);
+        rightMotor->setPWM(pwm_R);
+        if (clock->now() > 1000) {
+            flag = 6;
+        }
+    }
 
-    // // 次のペットボトルの近くまで近づく
-    // if (flag == 5) {
-    //     if (gyro >= 135) {
-    //         DISTAN = 830;
-    //     }
-    //     motor_ang_L = leftMotor->getCount();
-    //     motor_ang_R = rightMotor->getCount();
-    //     distanceWay->update(motor_ang_L, motor_ang_R);
-    //     disBefore = distanceWay->getDistance();
-    //     while (distanceWay->getDistance() - disBefore <= DISTAN) {
-    //         gyroPID->setTaget(TGYRO);
-    //         gyro = gyroSensor->getAngle();
-    //         pid = gyroPID->calcControl(gyro);
-    //         pwm_L = 55 + pid;
-    //         pwm_R = 55 - pid;
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armControl(ARM_ON);
-    //         motor_ang_L = leftMotor->getCount();
-    //         motor_ang_R = rightMotor->getCount();
-    //         distanceWay->update(motor_ang_L, motor_ang_R);
-    //     }
-    //     DISTAN = 280;
-    //     BGYRO += 85;
-    //     TGYRO += 89;
-    //     flag = 0;
-    //     if (gyro >= 135) {
-    //         ends = 1;
-    //     }
-    // }
+    if (flag == 6) {
+        forward = -50;
+        gyroPID->setTaget(BGYRO);
+        turn = gyroPID->calcControl(gyro);
+        if (disBefore > distanceWay->getDistance()) {
+            flag = 7;
+            clock->reset();
+            clock->sleep(1);
+        }
+    }
 
-    // // ペットボトルを押し出す
-    // if (flag == 8) {
-    //     motor_ang_L = leftMotor->getCount();
-    //     motor_ang_R = rightMotor->getCount();
-    //     distanceWay->update(motor_ang_L, motor_ang_R);
-    //     disBefore = distanceWay->getDistance();
-    //     while (distanceWay->getDistance() - disBefore <= 250) {
-    //         pwm_L = 30;
-    //         pwm_R = 30;
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armControl(ARM_OFF);
-    //         motor_ang_L = leftMotor->getCount();
-    //         motor_ang_R = rightMotor->getCount();
-    //         distanceWay->update(motor_ang_L, motor_ang_R);
-    //     }
-    //     clock->reset();
-    //     clock->sleep(1);
-    //     while (clock->now() <= 1000) {
-    //         leftMotor->setPWM(0);
-    //         rightMotor->setPWM(0);
-    //         armControl(ARM_ON);
-    //     }
-    //     motor_ang_L = leftMotor->getCount();
-    //     motor_ang_R = rightMotor->getCount();
-    //     distanceWay->update(motor_ang_L, motor_ang_R);
-    //     disBefore = distanceWay->getDistance();
-    //     while (distanceWay->getDistance() - disBefore >= -200) {
-    //         pwm_L = -50;
-    //         pwm_R = -50;
-    //         leftMotor->setPWM(pwm_L);
-    //         rightMotor->setPWM(pwm_R);
-    //         armControl(ARM_ON);
-    //         motor_ang_L = leftMotor->getCount();
-    //         motor_ang_R = rightMotor->getCount();
-    //         distanceWay->update(motor_ang_L, motor_ang_R);
-    //     }
+    if (flag == 7) {
+        pwm_L =  5;
+        pwm_R = -5;
+        steeringSwitch = 0;
+        leftMotor->setPWM(pwm_L);
+        rightMotor->setPWM(pwm_R);
+        if (clock->now() > 1000) {
+            flag = 0;
+        }
+    }
 
-    //     flag = 4;
-    //     ends = 2;
-    // }
-
-    // // ゴールに向かって走る
-    // if (flag == 12) {
-    //     if (rgb_total >= 500) {
-    //         gyroPID->setTaget(270);
-    //         gyro = gyroSensor->getAngle();
-    //         pid = gyroPID->calcControl(gyro);
-    //         pwm_L = 55 + pid;
-    //         pwm_R = 55 - pid;
-    //         armControl(ARM_ON);
-    //     }
-    //     else {
-    //         flag = 50;
-    //     }
-    // }
 
     if (steeringSwitch == 1) {
         steering->setPower(forward, turn);
