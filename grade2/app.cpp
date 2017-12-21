@@ -106,7 +106,8 @@ void main_task(intptr_t unused)
     /* LCD画面表示 */
     char buf[64];
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
-    sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
+    // sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
+    sprintf(buf, "YOSEN ver.%s", VERSION );
     ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
 
     /* Open Bluetooth file */
@@ -481,7 +482,7 @@ void controller_task(intptr_t unused)
 
     // ゴールに向かって走る
     if (flag == 12) {
-        if (rgb_total >= 700) {
+        if (rgb_total >= 650) {
             gyroPID->setTaget(270);
             gyro = gyroSensor->getAngle();
             pid = gyroPID->calcControl(gyro);

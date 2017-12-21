@@ -110,7 +110,8 @@ void main_task(intptr_t unused)
     /* LCD画面表示 */
     char buf[64];
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
-    sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
+    // sprintf(buf, "Steel Fight 2017 ver.%s", VERSION );
+    sprintf(buf, "CHAMPION ver.%s", VERSION );
     ev3_lcd_draw_string(buf, 0, CALIB_FONT_HEIGHT*1);
 
     /* Open Bluetooth file */
@@ -226,6 +227,7 @@ void controller_task(intptr_t unused)
         gyroPID->setTaget(34);
         turn = -gyroPID->calcControl(gyro);
         forward = 65;
+        armSwitch = ARM_OFF;
     }
     else
     if (flag == 0) { // 120cm内を探索する
