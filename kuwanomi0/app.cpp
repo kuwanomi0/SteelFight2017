@@ -193,7 +193,7 @@ void main_task(intptr_t unused)
 //*****************************************************************************
 void controller_task(intptr_t unused)
 {
-    int8_t  forward = 50, turn = 0;
+    int8_t  forward = 65, turn = 0;
     int32_t pwm_L = 0, pwm_R = 0;
     int32_t motor_ang_L, motor_ang_R;
     int     gyro, armSwitch = ARM_ON;
@@ -225,7 +225,7 @@ void controller_task(intptr_t unused)
     if (distanceWay->getDistance() <= 1420 && flag == 0 && startFlag == 0) {
         gyroPID->setTaget(34);
         turn = -gyroPID->calcControl(gyro);
-        forward = 55;
+        forward = 65;
     }
     else
     if (flag == 0) { // 120cm内を探索する
@@ -235,7 +235,7 @@ void controller_task(intptr_t unused)
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
         if (sonarSensor->getDistance() <= 120) {
-            BGYRO = gyro + 40;
+            BGYRO = gyro + 60;
             flag = 1;
             startFlag = 1;
             minDis = sonarSensor->getDistance();
@@ -245,15 +245,15 @@ void controller_task(intptr_t unused)
 
     // 最も短い距離とその時のGYROの値を取得する
     if (flag == 1) {
-        pwm_L =  1;
-        pwm_R = -1;
+        pwm_L = 2;
+        pwm_R = -2;
         steeringSwitch = 0;
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
         ev3_led_set_color(LED_ORANGE);
         if (minDis > sonarSensor->getDistance()) {
             minDis = sonarSensor->getDistance();
-            mindisGyro = gyro;
+            mindisGyro = gyro + 8;
         }
         if (gyro > BGYRO) {
             flag = 2;
@@ -267,8 +267,8 @@ void controller_task(intptr_t unused)
         steeringSwitch = 0;
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
-        ev3_led_set_color(LED_RED);
-        if (gyro < mindisGyro) {
+        ev3_led_set_color(LED_GREEN);
+        if (gyro <= mindisGyro) {
             disBefore = distanceWay->getDistance();
             BGYRO = mindisGyro;
             flag = 3;
@@ -320,7 +320,7 @@ void controller_task(intptr_t unused)
 
     // 元の位置までバックで戻る
     if (flag == 6) {
-        forward = -50;
+        forward = -65;
         gyroPID->setTaget(BGYRO);
         turn = gyroPID->calcControl(gyro);
         if (disBefore > distanceWay->getDistance()) {
@@ -332,12 +332,12 @@ void controller_task(intptr_t unused)
 
     // 移動させたものを誤検知させないために角度を少しずらす
     if (flag == 7) {
-        pwm_L =  5;
-        pwm_R = -5;
+        pwm_L =  7;
+        pwm_R = -7;
         steeringSwitch = 0;
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
-        if (clock->now() > 1000) {
+        if (clock->now() > 700) {
             flag = 0;
         }
     }
@@ -350,9 +350,9 @@ void controller_task(intptr_t unused)
     armControl(armSwitch);
 
     //LCD表示
-    char bufg[64];
-    sprintf(bufg, "G:%4d", gyro);
-    ev3_lcd_draw_string(bufg, 0, CALIB_FONT_HEIGHT*4);
+    // char bufg[64];
+    // sprintf(bufg, "G:%4d MG:%4d", gyro, mindisGyro);
+    // ev3_lcd_draw_string(bufg, 0, CALIB_FONT_HEIGHT*4);
 
     ext_tsk();
 }
