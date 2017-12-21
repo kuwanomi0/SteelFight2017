@@ -447,6 +447,11 @@ void controller_task(intptr_t unused)
             motor_ang_L = leftMotor->getCount();
             motor_ang_R = rightMotor->getCount();
             distanceWay->update(motor_ang_L, motor_ang_R);
+            colorSensor->getRawColor(rgb_level); /* RGB取得 */
+            rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b);
+            if (rgb_total < 300) {
+                break;
+            }
         }
         clock->reset();
         clock->sleep(1);
@@ -458,8 +463,8 @@ void controller_task(intptr_t unused)
         motor_ang_L = leftMotor->getCount();
         motor_ang_R = rightMotor->getCount();
         distanceWay->update(motor_ang_L, motor_ang_R);
-        disBefore = distanceWay->getDistance();
-        while (distanceWay->getDistance() - disBefore >= -200) {
+        disBefore += 30;
+        while (distanceWay->getDistance() >= disBefore) {
             pwm_L = -50;
             pwm_R = -50;
             leftMotor->setPWM(pwm_L);
