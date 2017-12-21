@@ -243,6 +243,7 @@ void controller_task(intptr_t unused)
         }
     }
 
+    // 最も短い距離とその時のGYROの値を取得する
     if (flag == 1) {
         pwm_L =  1;
         pwm_R = -1;
@@ -259,6 +260,7 @@ void controller_task(intptr_t unused)
         }
     }
 
+    // 最小値のGYROの位置まで移動する
     if (flag == 2) {
         pwm_L = -2;
         pwm_R =  2;
@@ -273,21 +275,29 @@ void controller_task(intptr_t unused)
         }
     }
 
-
+    // ペットボトルの近くまで移動する
     if (flag == 3) {
         gyroPID->setTaget(BGYRO);
         turn = -gyroPID->calcControl(gyro);
+        if (rgb_total < 250) {  // もし検知したペットボトルがコース外であれば次の処理を飛ばす
+            forward = turn = 0;
+            armSwitch = ARM_ON;
+            flag = 5;
+            clock->reset();
+            clock->sleep(1);
+        }
         if (distanceWay->getDistance() > disBefore + (minDis * 9) ) {
             flag = 4;
         }
     }
 
+    // ペットボトルを挟み黒線、青線までもっていく
     if (flag == 4) {
         forward = 20;
         gyroPID->setTaget(BGYRO);
         turn = -gyroPID->calcControl(gyro);
         armSwitch = ARM_OFF;
-        if (rgb_total < 500) {
+        if (rgb_total < 250) {
             forward = turn = 0;
             armSwitch = ARM_ON;
             flag = 5;
@@ -296,6 +306,7 @@ void controller_task(intptr_t unused)
         }
     }
 
+    // その場で止まってペットボトルを放す
     if (flag == 5) {
         pwm_L = 0;
         pwm_R = 0;
@@ -307,6 +318,7 @@ void controller_task(intptr_t unused)
         }
     }
 
+    // 元の位置までバックで戻る
     if (flag == 6) {
         forward = -50;
         gyroPID->setTaget(BGYRO);
@@ -318,6 +330,7 @@ void controller_task(intptr_t unused)
         }
     }
 
+    // 移動させたものを誤検知させないために角度を少しずらす
     if (flag == 7) {
         pwm_L =  5;
         pwm_R = -5;
@@ -329,12 +342,14 @@ void controller_task(intptr_t unused)
         }
     }
 
-
+    // ステアリング走行
     if (steeringSwitch == 1) {
         steering->setPower(forward, turn);
     }
+    // アームの開閉処理
     armControl(armSwitch);
 
+    //LCD表示
     char bufg[64];
     sprintf(bufg, "G:%4d", gyro);
     ev3_lcd_draw_string(bufg, 0, CALIB_FONT_HEIGHT*4);
