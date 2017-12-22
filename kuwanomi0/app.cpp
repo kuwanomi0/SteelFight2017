@@ -76,13 +76,9 @@ PID*            armPID;  /* アームモータ用のPID */
 static rgb_raw_t rgb_level;  /* カラーセンサーから取得した値を格納する構造体 */
 static uint16_t rgb_total = RGB_TARGET;
 static uint16_t rgb_before;
-// static int8_t pwm_L = 0;     /* 左モータPWM出力 */
-// static int8_t pwm_R = 0;     /* 右モータPWM出力 */
 static int8_t flag = 0;
 static int8_t startFlag = 0;
-// static int8_t pid = 0;
 static int32_t BGYRO = -95;
-// static int32_t TGYRO =   0;
 static int32_t disBefore = 0;
 static int32_t minDis = 250;
 static int32_t minDisL = 250;
@@ -90,8 +86,6 @@ static int32_t minDisR = 250;
 static int32_t mindisGyro = 0;
 static int32_t mindisGyroL = 0;
 static int32_t mindisGyroR = 0;
-// static int8_t  ends = 0;
-// static int32_t  sCount = 0;
 
 /* メインタスク */
 void main_task(intptr_t unused)
