@@ -85,7 +85,11 @@ static int32_t BGYRO = -95;
 // static int32_t TGYRO =   0;
 static int32_t disBefore = 0;
 static int32_t minDis = 250;
+static int32_t minDisL = 250;
+static int32_t minDisR = 250;
 static int32_t mindisGyro = 0;
+static int32_t mindisGyroL = 0;
+static int32_t mindisGyroR = 0;
 // static int8_t  ends = 0;
 // static int32_t  sCount = 0;
 
@@ -236,12 +240,12 @@ void controller_task(intptr_t unused)
         steeringSwitch = 0;
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
-        if (sonarSensor->getDistance() <= 120) {
-            BGYRO = gyro + 60;
+        if (sonarSensor->getDistance() <= 135) {
+            BGYRO = gyro + 45;
             flag = 1;
             startFlag = 1;
-            minDis = sonarSensor->getDistance();
-            mindisGyro = gyro;
+            minDisL = minDisR = sonarSensor->getDistance();
+            mindisGyroL = mindisGyroR =gyro;
         }
     }
 
@@ -253,24 +257,45 @@ void controller_task(intptr_t unused)
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
         ev3_led_set_color(LED_ORANGE);
-        if (minDis > sonarSensor->getDistance()) {
-            minDis = sonarSensor->getDistance();
-            mindisGyro = gyro + 8;
+        if (minDisL > sonarSensor->getDistance()) {
+            minDisL = sonarSensor->getDistance();
+            mindisGyroL = gyro;
         }
         if (gyro > BGYRO) {
+            flag = 88;
+        }
+    }
+
+    if (flag == 88) {
+        pwm_L = -2;
+        pwm_R =  2;
+        steeringSwitch = 0;
+        leftMotor->setPWM(pwm_L);
+        rightMotor->setPWM(pwm_R);
+        ev3_led_set_color(LED_ORANGE);
+        if (minDisR > sonarSensor->getDistance()) {
+            minDisR = sonarSensor->getDistance();
+            mindisGyroR = gyro;
+        }
+        if (gyro < BGYRO -60) {
+            minDis = (minDisL + minDisR) / 2;
+            mindisGyro = (mindisGyroL + mindisGyroR) / 2;
+            if (mindisGyro >= BGYRO -60) {
+                flag = 7;
+            }
             flag = 2;
         }
     }
 
     // 最小値のGYROの位置まで移動する
     if (flag == 2) {
-        pwm_L = -2;
-        pwm_R =  2;
+        pwm_L = 2;
+        pwm_R = -2;
         steeringSwitch = 0;
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
         ev3_led_set_color(LED_GREEN);
-        if (gyro <= mindisGyro) {
+        if (gyro >= mindisGyro) {
             disBefore = distanceWay->getDistance();
             BGYRO = mindisGyro;
             flag = 3;
@@ -283,7 +308,7 @@ void controller_task(intptr_t unused)
         turn = -gyroPID->calcControl(gyro);
         if (rgb_total < 250) {  // もし検知したペットボトルがコース外であれば次の処理を飛ばす
             forward = turn = 0;
-            armSwitch = ARM_ON;
+            // armSwitch = ARM_ON;
             flag = 5;
             clock->reset();
             clock->sleep(1);
@@ -295,13 +320,13 @@ void controller_task(intptr_t unused)
 
     // ペットボトルを挟み黒線、青線までもっていく
     if (flag == 4) {
-        forward = 20;
+        forward = 12;
         gyroPID->setTaget(BGYRO);
         turn = -gyroPID->calcControl(gyro);
-        armSwitch = ARM_OFF;
+        // armSwitch = ARM_OFF;
         if (rgb_total < 250) {
             forward = turn = 0;
-            armSwitch = ARM_ON;
+            // armSwitch = ARM_ON;
             flag = 5;
             clock->reset();
             clock->sleep(1);
@@ -315,7 +340,7 @@ void controller_task(intptr_t unused)
         steeringSwitch = 0;
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
-        if (clock->now() > 1000) {
+        if (clock->now() > 100) {
             flag = 6;
         }
     }
@@ -334,12 +359,12 @@ void controller_task(intptr_t unused)
 
     // 移動させたものを誤検知させないために角度を少しずらす
     if (flag == 7) {
-        pwm_L =  7;
-        pwm_R = -7;
+        pwm_L =  8;
+        pwm_R = -8;
         steeringSwitch = 0;
         leftMotor->setPWM(pwm_L);
         rightMotor->setPWM(pwm_R);
-        if (clock->now() > 700) {
+        if (clock->now() > 1000) {
             flag = 0;
         }
     }

@@ -277,6 +277,12 @@ void controller_task(intptr_t unused)
             rightMotor->setPWM(pwm_R);
             armControl(ARM_ON);
             bSonerDis = sonarSensor->getDistance();
+            rgb_before = rgb_total; //LPF用前処理
+            colorSensor->getRawColor(rgb_level); /* RGB取得 */
+            rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP);
+            if (rgb_total <= 300) {
+                break;
+            }
         }
         flag = 1; // 次の処理へ
     }
@@ -390,6 +396,9 @@ void controller_task(intptr_t unused)
             TGYRO = 270;
         }
         while (gyro <= TGYRO) {
+            rgb_before = rgb_total; //LPF用前処理
+            colorSensor->getRawColor(rgb_level); /* RGB取得 */
+            rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
             gyro = gyroSensor->getAngle();
             leftMotor->setPWM(30);
             rightMotor->setPWM(0);
@@ -482,7 +491,10 @@ void controller_task(intptr_t unused)
 
     // ゴールに向かって走る
     if (flag == 12) {
-        if (rgb_total >= 650) {
+        rgb_before = rgb_total; //LPF用前処理
+        colorSensor->getRawColor(rgb_level); /* RGB取得 */
+        rgb_total = (rgb_level.r + rgb_level.g + rgb_level.b)  * KLP + rgb_before * (1 - KLP); //LPF
+        if (rgb_total >= 630) {
             gyroPID->setTaget(270);
             gyro = gyroSensor->getAngle();
             pid = gyroPID->calcControl(gyro);
