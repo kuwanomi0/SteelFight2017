@@ -3,8 +3,8 @@
 
 ## 構成
 ```
-grade1 (1年生チームのapp)
-grade2 (2年生チームのapp)
+qualifying (予選)
+final      (決勝)
 ```
 
 ## ETロボコンとの相違点
